@@ -1,23 +1,32 @@
-# TrendLab visual dashboard — reference-inspired redesign
+# TrendLab — Research UI: treemap-first, minimal and evidence-aware
 
-## Visual intent
-The user supplied a cloud dashboard screenshot as a **layout reference**: a large treemap on the left, four clearly structured KPIs on the top right, and a 2×2 grid of small trend panels below. We adapt the visual hierarchy and high-contrast color language, **not** the cloud-dashboard's unrelated user counts, traffic, incidents or uptime.
+This document describes the current interface and supersedes the older reference-inspired 2-column analytics layout.
 
-## What is actually measured
+## Intent
 
-- **Treemap**: the 24 highest measured distinct native store IDs **per platform**. Android and iOS have separate, equal-width panels; tile weights are `log10(count + 10)^2`, which is a *display transform*, not market share. Android `maxInstalls` semantics remain unverified; iOS uses US rating count only. Color uses anchored source-specific user star-rating thresholds, not inferred growth. Native IDs are deduplicated across storefront catalog rows.
-- **Top KPIs**: local catalog platform record count, platform records with at least one observed metric, local observation coverage, and platform records observed within the last 48 hours. They do not claim global market coverage.
-- **Daily Observations**: count of recorded `observed_metrics` rows per UTC date over 30 dates. Some rows are chart/rank observations; they are not downloads or unique active users.
-- **First Observations**: platform IDs with their earliest ever `observed_metrics` record on each UTC date, not apps first published to app stores.
-- **Collection Reliability**: outcomes of completed collection audit cycles per day, plotted as attempted successes/failures. There can be repeat attempts; no unique-user inference.
-- **Evidence Freshness**: age buckets for `lastObservedAt` among observed catalog rows; catalog IDs without observations are excluded. No fake zeros.
-- **App directory**: collapsible below the main dashboard, searchable and deduplicated by native ID within each platform. Original app inspector remains available.
+Follow the research-first interaction of Karpathy Jobs rather than importing unrelated Cloud Dashboard reporting components. The homepage should make the **app treemap, meaningful controls, and a few truthful metrics** dominant. Infrastructure charts (daily collector activity, attempts, backups) do **not** belong on the research homepage; available exported activity remains in `data.json` for future operations monitoring.
 
-The global research overview and 30-day charts do **not** change with treemap's platform/search filter; this deliberate choice should remain clear via the “GLOBAL OBSERVED SET” label. Treemap tiles and directory do respond to search, platform and metric filters.
+## Page hierarchy
 
-## Deployment
-After PR merge on Ubuntu:
-```sh
+1. Clear title, brief explanation of source semantics.
+2. Controls: Android / iOS / All (separate), metric/layer, time window and search.
+3. Compact metrics: known catalog platform rows, observed platform rows + catalog-local coverage, valid model evidence among filtered distinct apps, and recently observed rows (48h).
+4. **Full-width treemap** with one rectangle per distinct measured native store app; click for history/provenance. All distinct eligible apps are displayed by default without an arbitrary 24/64-app cutoff.
+5. Minimal source-unit/color/area legend; the detail drawer stays available for individual records.
+
+## Critical correctness rules
+
+- Default view: **Android only**, so a single treemap has a consistent source unit and many application rectangles. iOS only is an independent treemap based on US rating counts. The All view is optional and displays **two separate coordinate panels**, not a falsely comparable combined market scale.
+- Android `maxInstalls` source semantics are unverified. iOS source counter is **US rating count**, not downloads. Both use `log10(count + 10)^2` for legible rectangle area. This is **not proportional market share** (unlike the employment-area example in Karpathy Jobs).
+- Color in the default layer reflects source-matched **1–5 user rating**, anchored red→amber→green; gray means missing score. The growth layers are provisional models, per-platform normalizations; they are not validated forecasts.
+- A Top-N or search filter **must never alter raw snapshots, model calculations or the catalog**. Top-N is omitted by default. Only users' visible selection changes.
+- Native store IDs are deduplicated within each platform, without silently equating Android/iOS apps.
+- Insufficient evidence for a requested trend layer must render a compact message, not fake positive/negative scores; observed scale remains available.
+- Long-term large-catalog performance will eventually require zoom/drilldown or progressive rendering; do not reinstate a silent Top-24 cutoff as a workaround.
+
+## Deployment after merge
+
+```bash
 cd ~/trendlab
 git pull --ff-only origin main
 npm ci
@@ -25,10 +34,8 @@ npm test
 node bin/cli.js export
 ```
 
-Reload `http://localhost:8080` with Ctrl+Shift+R through the existing SSH tunnel. The server's `serve` process rereads assets for each request; no collector or timer restart is necessary. The existing daily analytics/export timer will also regenerate the new activity series on its next run.
+Open the existing localhost dashboard and perform **Ctrl+Shift+R**. The currently running static server reads web files on each request; monitor, discovery, analytics, and backup services should not be restarted. There is no DB migration.
 
-## Known constraints
-- Still only a prototype with limited known-catalog coverage and an unverified Android install-count source.
-- Activity is derived from existing observation and audit tables. The graphs are not daily-download, DAU, network-traffic, app-uptime or growth forecasts.
-- The 24-app-per-platform visualization limit is a presentation choice only; the rest remain searchable in the app directory. It must never be confused with the collection limit or catalog size.
-- This PR is a layout/observability improvement only. Global long-tail discovery, measured 24-hour refresh feasibility and validated growth modeling remain separate unmet acceptance criteria.
+## Unmet research requirements
+
+True worldwide Education app discovery, a verified 24h refresh SLA across the known catalog, and validated growth scoring remain incomplete. See `docs/REQUIREMENTS_ACCEPTANCE.md`. This is a UI/layout change, **not** an improvement to the observation/collection pipeline.
