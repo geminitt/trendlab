@@ -63,10 +63,16 @@ async function main() {
     case 'sweep': {
       console.log('--- COMMAND: SWEEP TOP CHARTS ---');
       const sweeper = new StoreSweeper(repo);
-      await sweeper.sweepAppleEducationCharts(flag('storefronts')
+      // The same explicit country list must apply to BOTH Android and iOS.
+      // Chart discovery is supplementary (Top-K), never a complete market census.
+      const storefronts = flag('storefronts')
         ? flag('storefronts').split(',').map(x => x.trim().toLowerCase()).filter(Boolean)
-        : require('../config/default.json').catalog.surveyedStorefronts);
-      await sweeper.sweepGooglePlayEducationCharts();
+        : require('../config/default.json').catalog.surveyedStorefronts;
+      if (!storefronts.length || storefronts.some(s => !/^[a-z]{2}$/.test(s))) {
+        throw new Error('Invalid --storefronts: expected comma-separated two-letter country codes');
+      }
+      await sweeper.sweepAppleEducationCharts(storefronts);
+      await sweeper.sweepGooglePlayEducationCharts(storefronts);
       break;
     }
 
