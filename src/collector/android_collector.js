@@ -27,20 +27,20 @@ class AndroidCollector {
       });
 
       // 2. Record observed numeric metric series
-      // Use maxInstalls as verified in Phase 0 Feasibility
-      const installCounter = typeof result.maxInstalls === 'number' ? result.maxInstalls : null;
-      const flags = [];
-      if (!installCounter && result.minInstalls) {
-        flags.push('FALLBACK_MIN_INSTALLS');
-      }
+      // google-play-scraper may expose a detailed maxInstalls counter;
+      // minInstalls is only a rounded install threshold, NOT a valid fallback.
+      const installCounter = Number.isSafeInteger(result.maxInstalls) && result.maxInstalls >= 0
+        ? result.maxInstalls : null;
+      const flags = ['INSTALL_COUNTER_SEMANTICS_UNVERIFIED'];
+      if (installCounter === null) flags.push('INSTALL_COUNTER_MISSING');
 
       this.repo.recordObservedMetrics({
         platformAppId: platformApp.id,
         observedAt,
-        installCounter: installCounter || result.minInstalls || null,
-        ratingCount: result.ratings || null,
-        reviewCount: result.reviews || null,
-        ratingScore: result.score || null,
+        installCounter,
+        ratingCount: result.ratings ?? null,
+        reviewCount: result.reviews ?? null,
+        ratingScore: result.score ?? null,
         storefront: 'global',
         flags: JSON.stringify(flags)
       });
