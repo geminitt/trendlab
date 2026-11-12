@@ -22,13 +22,16 @@ test('Android and iOS observed source counters are never mixed into one group', 
   assert.deepEqual(getScaleCandidates(apps, 'ios').map(a => a.id), ['c']);
 });
 
-test('scale map shows top measured apps and weights grow monotonically', () => {
+test('scale map keeps every distinct measured app by default and allows explicit UI limits', () => {
   const apps = Array.from({length: 100}, (_, i) =>
     app('app' + i, 'android', i * 100, 'observed_install_counter'));
-  const top = getScaleCandidates(apps, 'android');
-  assert.equal(top.length, 24);
-  assert.equal(top[0].rawVolume, 9900);
-  assert.ok(tileWeight(top[0]) > tileWeight(top[23]));
+  const all = getScaleCandidates(apps, 'android');
+  assert.equal(all.length, 100);
+  assert.equal(all[0].rawVolume, 9900);
+  assert.equal(all.at(-1).rawVolume, 0);
+  assert.ok(tileWeight(all[0]) > tileWeight(all.at(-1)));
+  assert.equal(getScaleCandidates(apps, 'android', 24).length, 24);
+  assert.equal(apps.length, 100, 'visual selection cannot mutate collected datasets');
 });
 
 test('rating color has fixed anchored thresholds and missing ratings remain neutral', () => {
