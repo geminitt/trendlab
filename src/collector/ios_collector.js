@@ -4,7 +4,12 @@ const config = require('../../config/default.json');
 
 function fetchJson(url, userAgent) {
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': userAgent } }, (res) => {
+    const request = https.get(url, { headers: { 'User-Agent': userAgent } }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error('Apple Lookup HTTP ' + res.statusCode));
+        return;
+      }
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
@@ -15,6 +20,7 @@ function fetchJson(url, userAgent) {
         }
       });
     }).on('error', reject);
+    request.setTimeout(15000, () => request.destroy(new Error('Apple Lookup timeout')));
   });
 }
 
@@ -48,6 +54,16 @@ class IosCollector {
       for (const app of apps) {
         const item = resultMap.get(String(app.native_store_id));
         if (item) {
+          if (String(item.primaryGenreId) !== '6017') {
+            // The listing can change category. Do not mislabel a non-Education app.
+            failed++;
+            this.repo.recordCollectionAttempt({
+              platformAppId: app.id, storefront, succeeded: false,
+              error: 'NOT_EDUCATION',
+              retryHours: 24
+            });
+            continue;
+          }
           succeeded++;
           // 1. Save raw snapshot
           this.repo.saveRawSnapshot({
@@ -64,9 +80,9 @@ class IosCollector {
             platformAppId: app.id,
             observedAt,
             installCounter: null, // Apple does not disclose installs
-            ratingCount: item.userRatingCount || null,
+            ratingCount: item.userRatingCount ?? null,
             reviewCount: null,
-            ratingScore: item.averageUserRating || null,
+            ratingScore: item.averageUserRating ?? null,
             storefront,
             flags: '[]'
           });
@@ -85,8 +101,16 @@ class IosCollector {
             price: item.price || 0.0,
             currency: item.currency || 'USD'
           });
+          this.repo.recordCollectionAttempt({
+            platformAppId: app.id, storefront, succeeded: true,
+            refreshHours: config.collector.ios.refreshHours ?? 24
+          });
         } else {
           failed++;
+          this.repo.recordCollectionAttempt({
+            platformAppId: app.id, storefront, succeeded: false,
+            error: 'NOT_FOUND_IN_STOREFRONT'
+          });
         }
       }
 
@@ -94,12 +118,17 @@ class IosCollector {
       return { succeeded, failed };
     } catch (err) {
       console.error(`  [IosCollector] Batch failed:`, err.message);
+      for (const app of apps) {
+        this.repo.recordCollectionAttempt({
+          platformAppId: app.id, storefront, succeeded: false, error: err.message
+        });
+      }
       return { succeeded: 0, failed: apps.length, error: err.message };
     }
   }
 
   async collectAll({ limit = 200, storefront = 'us' } = {}) {
-    const apps = this.repo.getPlatformApps({ platform: 'ios', limit });
+    const apps = this.repo.getDuePlatformApps({ platform: 'ios', storefront, limit });
     console.log(`[IosCollector] Starting batch collection for ${apps.length} iOS apps (Storefront: ${storefront.toUpperCase()})...`);
 
     const batchSize = config.collector.ios.lookupBatchSize || 50;
@@ -113,8 +142,11 @@ class IosCollector {
       totalFailed += res.failed;
 
       // Rate limit delay between batches
-      const delay = (config.collector.ios.requestDelayMs || 1200) + Math.floor(Math.random() * (config.collector.ios.randomJitterMs || 300));
-      await new Promise(r => setTimeout(r, delay));
+      if (i + batchSize < apps.length) {
+        const delay = (config.collector.ios.requestDelayMs || 3500) +
+          Math.floor(Math.random() * (config.collector.ios.randomJitterMs || 300));
+        await new Promise(r => setTimeout(r, delay));
+      }
     }
 
     console.log(`[IosCollector] Finished: ${totalSucceeded} succeeded, ${totalFailed} failed.`);

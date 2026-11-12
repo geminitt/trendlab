@@ -27,20 +27,20 @@ class AndroidCollector {
       });
 
       // 2. Record observed numeric metric series
-      // Use maxInstalls as verified in Phase 0 Feasibility
-      const installCounter = typeof result.maxInstalls === 'number' ? result.maxInstalls : null;
-      const flags = [];
-      if (!installCounter && result.minInstalls) {
-        flags.push('FALLBACK_MIN_INSTALLS');
-      }
+      // google-play-scraper may expose a detailed maxInstalls counter;
+      // minInstalls is only a rounded install threshold, NOT a valid fallback.
+      const installCounter = Number.isSafeInteger(result.maxInstalls) && result.maxInstalls >= 0
+        ? result.maxInstalls : null;
+      const flags = ['INSTALL_COUNTER_SEMANTICS_UNVERIFIED'];
+      if (installCounter === null) flags.push('INSTALL_COUNTER_MISSING');
 
       this.repo.recordObservedMetrics({
         platformAppId: platformApp.id,
         observedAt,
-        installCounter: installCounter || result.minInstalls || null,
-        ratingCount: result.ratings || null,
-        reviewCount: result.reviews || null,
-        ratingScore: result.score || null,
+        installCounter,
+        ratingCount: result.ratings ?? null,
+        reviewCount: result.reviews ?? null,
+        ratingScore: result.score ?? null,
         storefront: 'global',
         flags: JSON.stringify(flags)
       });
@@ -69,7 +69,7 @@ class AndroidCollector {
   }
 
   async collectAll({ limit = 100 } = {}) {
-    const apps = this.repo.getPlatformApps({ platform: 'android', limit });
+    const apps = this.repo.getDuePlatformApps({ platform: 'android', storefront: 'global', limit });
     console.log(`[AndroidCollector] Starting collection for ${apps.length} Android apps...`);
 
     let succeeded = 0;
@@ -81,6 +81,12 @@ class AndroidCollector {
       const app = apps[i];
       const res = await this.collectApp(app);
 
+      this.repo.recordCollectionAttempt({
+        platformAppId: app.id, storefront: 'global',
+        succeeded: res.success, error: res.error,
+        refreshHours: config.collector.android.refreshHours ?? 24
+      });
+
       if (res.success) {
         succeeded++;
         console.log(`  [${i + 1}/${apps.length}] ${app.title} (${res.appId}) -> OK (${res.latency}ms)`);
@@ -90,8 +96,10 @@ class AndroidCollector {
       }
 
       // Respect rate-limiting with random jitter
-      const delay = baseDelay + Math.floor(Math.random() * jitter);
-      await new Promise(r => setTimeout(r, delay));
+      if (i < apps.length - 1) {
+        const delay = baseDelay + Math.floor(Math.random() * jitter);
+        await new Promise(r => setTimeout(r, delay));
+      }
     }
 
     console.log(`[AndroidCollector] Finished: ${succeeded} succeeded, ${failed} failed.`);

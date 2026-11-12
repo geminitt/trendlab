@@ -2,7 +2,6 @@ const Repository = require('../storage/repository');
 const AndroidCollector = require('./android_collector');
 const IosCollector = require('./ios_collector');
 const StoreSweeper = require('../catalog/store_sweeper');
-const SeedImporter = require('../catalog/seed_importer');
 
 class CollectionScheduler {
   constructor(repo = null) {
@@ -10,10 +9,9 @@ class CollectionScheduler {
     this.androidCollector = new AndroidCollector(this.repo);
     this.iosCollector = new IosCollector(this.repo);
     this.sweeper = new StoreSweeper(this.repo);
-    this.seedImporter = new SeedImporter(this.repo);
   }
 
-  async runFullCycle({ androidLimit = 50, iosLimit = 100 } = {}) {
+  async runFullCycle({ androidLimit = 200, iosLimit = 200, storefront = 'us' } = {}) {
     console.log('=== STARTING TRENDLAB FULL COLLECTION CYCLE ===');
     const auditId = this.repo.startAuditLog('FULL_COLLECTION_CYCLE');
 
@@ -22,11 +20,11 @@ class CollectionScheduler {
     let totalFailed = 0;
 
     try {
-      // 1. Ensure seeds exist
-      const existingApps = this.repo.getPlatformApps({ limit: 10 });
-      if (existingApps.length === 0) {
-        console.log('[Scheduler] No apps found in catalog. Initializing seeds...');
-        this.seedImporter.importCuratedSeeds();
+      // Catalog must be imported explicitly via import-catalog or sweep.
+      // Never inject a curated list of famous apps into an otherwise empty dataset.
+      const hasApps = this.repo.getPlatformApps({ limit: 1 }).length > 0;
+      if (!hasApps) {
+        console.warn('[Scheduler] Empty catalog. Run import-catalog --file PATH first.');
       }
 
       // 2. Run Android Collection
@@ -36,7 +34,7 @@ class CollectionScheduler {
       totalFailed += andRes.failed;
 
       // 3. Run iOS Collection
-      const iosRes = await this.iosCollector.collectAll({ limit: iosLimit, storefront: 'us' });
+      const iosRes = await this.iosCollector.collectAll({ limit: iosLimit, storefront });
       totalAttempted += iosRes.attempted;
       totalSucceeded += iosRes.succeeded;
       totalFailed += iosRes.failed;
@@ -49,7 +47,7 @@ class CollectionScheduler {
       });
 
       console.log('=== FULL COLLECTION CYCLE COMPLETED ===\n');
-      return { status: 'SUCCESS', totalAttempted, totalSucceeded, totalFailed };
+      return { status: totalFailed > 0 ? 'PARTIAL' : 'SUCCESS', totalAttempted, totalSucceeded, totalFailed };
     } catch (err) {
       console.error('[Scheduler] Fatal error during collection cycle:', err);
       this.repo.finishAuditLog(auditId, {

@@ -125,3 +125,18 @@ CREATE TABLE IF NOT EXISTS collection_audit_logs (
     items_failed INTEGER DEFAULT 0,
     error_summary TEXT
 );
+
+-- Persistent per-app collection cursor. Scheduling does NOT depend on last_crawled_at:
+-- catalog imports/metadata refreshes are not evidence of metric collection.
+CREATE TABLE IF NOT EXISTS collection_state (
+    platform_app_id TEXT NOT NULL,
+    storefront TEXT NOT NULL,
+    last_attempted_at TEXT,
+    last_success_at TEXT,
+    next_due_at TEXT,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    PRIMARY KEY (platform_app_id, storefront),
+    FOREIGN KEY (platform_app_id) REFERENCES platform_applications(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_collection_due ON collection_state(next_due_at);

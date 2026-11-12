@@ -5,6 +5,69 @@
 
 ---
 
+## Data-first workflow (new collection pipeline)
+
+The repository is a **research prototype**, not a verified global census. AppGoblin
+is a discovery catalog; a row in its dump is **not** a live install measurement.
+No source currently guarantees unlimited, real-time access to all Education apps.
+
+1. Download `live_store_apps.tsv.xz` from
+   [AppGoblin Free App Datasets](https://appgoblin.info/free-app-datasets)
+   or its [public dataset repository](https://github.com/appgoblin-dev/appgoblin-data),
+   where available. Check licensing and attribution (CC BY 4.0).
+   Do not commit large vendor datasets to the repository.
+2. Import locally (Node 22+, `xz` installed for compressed TSV):
+
+   ```bash
+   npm ci
+   node bin/cli.js import-catalog --file /path/to/live_store_apps.tsv.xz
+   node bin/cli.js coverage
+   node bin/cli.js collect --android-limit 200 --ios-limit 200 --storefront us
+   node bin/cli.js coverage
+   npm test
+   ```
+
+   An uncompressed `.tsv` also works. Use `--max 1000` for a small dry run.
+   The importer uses exact `app_category=education` from the provider's
+   `store,store_id,app_name,app_category` columns, skips invalid IDs,
+   and upserts without creating duplicates on repeated imports.
+   Other provider category strings must be investigated separately.
+
+3. The collector now persists `collection_state` per app and storefront.
+   Re-running `collect` takes **due** apps, prioritizing unseen apps;
+   success is due again after a default 24 hours, failures use backoff.
+   Commands run a finite batch and exit. Run them again with an external
+   task scheduler for periodic collection, within the sources' access terms.
+   `coverage` reports **local** catalog counts, snapshots, recent collection,
+   and the last ten collection audit jobs; it does NOT calculate the global
+   denominator.
+
+4. `node bin/cli.js sweep` performs supplemental chart discovery
+   across configured storefronts/countries. Top-K charts do not establish
+   full market coverage. `seed --curated` is a manually selected demo
+   and is **never automatically inserted** by `collect` or `pipeline`.
+
+5. Once multiple **real** snapshots have accumulated:
+
+   ```bash
+   node bin/cli.js analyze
+   node bin/cli.js export
+   node bin/cli.js serve
+   ```
+
+   The UI is a research aid only. Android install-counter semantics have
+   not been verified as daily downloads. iOS rating counts are storefront-
+   specific and must not be pooled into a fictional global download metric.
+
+**Remaining limits:** Scraper availability/rate limits must be validated on
+your machine. Apple Lookup is not unlimited; conservative pacing is configured.
+The dataset's completeness/refresh cadence is not guaranteed by TrendLab.
+The `backtest` command currently reports model-overlap diagnostics **only**;
+it is not a predictive walk-forward backtest. The scoring formulas are
+provisional, pending real historical validation.
+
+---
+
 ## 1. Giới thiệu dự án
 
 **TrendLab** là một công cụ nghiên cứu cá nhân chuyên sâu nhằm:
@@ -21,7 +84,7 @@ Tài liệu đặc tả chi tiết:
 
 ---
 
-## 2. Cấu trúc dự án chuẩn Production
+## 2. Cấu trúc mã nguồn bản prototype
 
 Dự án được tổ chức theo chuẩn kiến trúc module chuyên nghiệp, không chia theo folder phase:
 
@@ -39,7 +102,8 @@ trendlab/
 │   │   ├── schema.sql          # DDL chuẩn hóa (Canonical, Snapshots, Metrics, Scores)
 │   │   └── repository.js       # Data Access Layer & Audit logging
 │   ├── catalog/                # Tầng danh mục & Khám phá
-│   │   ├── seed_importer.js    # Khởi tạo hạt giống & luồng tải AppGoblin TSV
+│   │   ├── seed_importer.js    # Curated demo seed (tùy chọn)
+│   │   ├── bulk_importer.js    # Nhập dữ liệu Education từ TSV/XZ local
 │   │   └── store_sweeper.js    # Quét bảng xếp hạng Apple RSS v2 & Google Play
 │   ├── collector/              # Tầng thu thập & kiểm soát nhịp
 │   │   ├── android_collector.js# Thu thập maxInstalls, ratings, score có pacing & jitter
@@ -80,13 +144,15 @@ npm install
 
 | Lệnh | Ý nghĩa chức năng |
 | :--- | :--- |
-| `node bin/cli.js seed` | Khởi tạo danh mục hạt giống giáo dục toàn cầu. |
-| `node bin/cli.js sweep` | Quét bảng xếp hạng Top Free Education để khám phá app mới. |
+| `node bin/cli.js seed --curated` | Tùy chọn demo bằng danh sách thủ công, không tính market coverage. |
+| `node bin/cli.js import-catalog --file PATH` | Import danh mục Education AppGoblin từ TSV/XZ tải về máy. |
+| `node bin/cli.js coverage` | Kiểm tra số app trong catalog, số app có snapshot và tiến độ. |
+| `node bin/cli.js sweep` | Bổ sung app từ Top Charts theo từng nước (không phải toàn thị trường). |
 | `node bin/cli.js collect` | Chạy worker thu thập dữ liệu Android và iOS. |
 | `node bin/cli.js analyze` | Tính toán chỉ số dẫn xuất và chấm điểm xu hướng các mô hình. |
-| `node bin/cli.js backtest` | Chạy kiểm nghiệm mô hình và phân tích độ trùng lặp Top K. |
+| `node bin/cli.js backtest` | Chỉ chẩn đoán độ trùng lặp Top-K; chưa đo hiệu năng dự báo. |
 | `node bin/cli.js export` | Biên dịch dữ liệu ra file tĩnh `web/data/data.json`. |
-| **`node bin/cli.js pipeline`** | **Chạy toàn bộ quy trình từ thu thập đến xuất bản dashboard.** |
+| **`node bin/cli.js pipeline`** | **Chạy một chu kỳ thu thập các app đến hạn trong catalog rồi phân tích/xuất bản.** |
 | **`node bin/cli.js serve`** | **Khởi chạy dashboard server tại `http://localhost:8080/`.** |
 
 ---

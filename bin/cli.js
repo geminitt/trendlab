@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Repository = require('../src/storage/repository');
 const SeedImporter = require('../src/catalog/seed_importer');
+const BulkCatalogImporter = require('../src/catalog/bulk_importer');
 const StoreSweeper = require('../src/catalog/store_sweeper');
 const CollectionScheduler = require('../src/collector/scheduler');
 const DerivedMetricsCalculator = require('../src/analytics/derived_metrics');
@@ -14,6 +15,21 @@ const SiteDataBuilder = require('../src/export/build_site_data');
 
 const command = process.argv[2] || 'help';
 
+function flag(name, fallback = null) {
+  const args = process.argv.slice(3);
+  const at = args.indexOf('--' + name);
+  if (at === -1) return fallback;
+  if (at + 1 >= args.length || args[at + 1].startsWith('--')) {
+    throw new Error('--' + name + ' requires a value');
+  }
+  return args[at + 1];
+}
+function positiveIntFlag(name, fallback) {
+  const value = Number(flag(name, String(fallback)));
+  if (!Number.isSafeInteger(value) || value < 1) throw new RangeError('--' + name + ' must be a positive integer');
+  return value;
+}
+
 async function main() {
   const repo = new Repository();
 
@@ -21,14 +37,34 @@ async function main() {
     case 'seed': {
       console.log('--- COMMAND: SEED CATALOG ---');
       const importer = new SeedImporter(repo);
+      if (!process.argv.includes('--curated')) {
+        throw new Error('Curated seeds are opt-in. Use seed --curated or import-catalog --file PATH');
+      }
       importer.importCuratedSeeds();
+      break;
+    }
+
+    case 'import-catalog': {
+      const input = flag('file');
+      if (!input) throw new Error('Usage: import-catalog --file PATH [--max N]');
+      const importer = new BulkCatalogImporter(repo);
+      const maxApps = flag('max') === null ? Infinity : positiveIntFlag('max', 1000);
+      const report = await importer.importFile(input, { maxApps });
+      console.log(JSON.stringify(report, null, 2));
+      break;
+    }
+
+    case 'coverage': {
+      console.log(JSON.stringify(repo.getCoverageReport(), null, 2));
       break;
     }
 
     case 'sweep': {
       console.log('--- COMMAND: SWEEP TOP CHARTS ---');
       const sweeper = new StoreSweeper(repo);
-      await sweeper.sweepAppleEducationCharts(['us', 'vn', 'gb']);
+      await sweeper.sweepAppleEducationCharts(flag('storefronts')
+        ? flag('storefronts').split(',').map(x => x.trim().toLowerCase()).filter(Boolean)
+        : require('../config/default.json').catalog.surveyedStorefronts);
       await sweeper.sweepGooglePlayEducationCharts();
       break;
     }
@@ -36,7 +72,11 @@ async function main() {
     case 'collect': {
       console.log('--- COMMAND: RUN COLLECTION ---');
       const scheduler = new CollectionScheduler(repo);
-      await scheduler.runFullCycle({ androidLimit: 50, iosLimit: 50 });
+      await scheduler.runFullCycle({
+        androidLimit: positiveIntFlag('android-limit', 200),
+        iosLimit: positiveIntFlag('ios-limit', 200),
+        storefront: flag('storefront', 'us')
+      });
       break;
     }
 
@@ -68,11 +108,12 @@ async function main() {
       console.log('   TRENDLAB: FULL END-TO-END RESEARCH PIPELINE      ');
       console.log('====================================================');
       
-      const importer = new SeedImporter(repo);
-      importer.importCuratedSeeds();
-
       const scheduler = new CollectionScheduler(repo);
-      await scheduler.runFullCycle({ androidLimit: 30, iosLimit: 40 });
+      await scheduler.runFullCycle({
+        androidLimit: positiveIntFlag('android-limit', 200),
+        iosLimit: positiveIntFlag('ios-limit', 200),
+        storefront: flag('storefront', 'us')
+      });
 
       const calculator = new DerivedMetricsCalculator(repo);
       calculator.calculateAll();
@@ -133,13 +174,15 @@ async function main() {
 Usage: node bin/cli.js <command>
 
 Commands:
-  seed       Import curated education seed catalog
-  sweep      Discover new trending apps via store top charts
-  collect    Run data collection workers (Android & iOS)
+  import-catalog --file PATH [--max N]   Import AppGoblin TSV / TSV.XZ catalog
+  coverage                          Report local catalog coverage and freshness
+  seed --curated                    Optional small curated demo catalog (not market coverage)
+  sweep [--storefronts us,gb,jp]      Discover via charts (Top-K only)
+  collect [--android-limit 200 --ios-limit 200 --storefront us]  Run due-app collection
   analyze    Calculate derived metrics & trend scores
   backtest   Run model tournament & walk-forward validation
   export     Export site data artifact (data.json)
-  pipeline   Run complete end-to-end pipeline
+  pipeline   Run due-app collection, analysis and export (no demo seeds)
   serve      Start local dashboard server
 `);
   }
