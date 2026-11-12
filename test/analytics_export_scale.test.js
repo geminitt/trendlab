@@ -44,7 +44,7 @@ test('analyze skips the catalog and evaluates only apps with 3 observed samples'
       for (let i = 0; i < values.length; i++) {
         repo.recordObservedMetrics({
           platformAppId: appId,
-          observedAt: new Date(now.getTime() - (values.length - 1 - i) * 86400000).toISOString(),
+          observedAt: new Date(now.getTime() - (values.length - 1 - i) * 3 * 86400000).toISOString(),
           installCounter: values[i]
         });
       }

@@ -39,7 +39,10 @@ class SiteDataBuilder {
         t: r.observed_at,
         installs: r.observed_install_counter,
         ratings: r.observed_rating_count,
-        score: r.observed_rating_score
+        score: r.observed_rating_score,
+        rank: r.observed_rank,
+        storefront: r.storefront,
+        chart: r.rank_chart_type
       }));
 
       // 2. Get latest snapshot for provenance
@@ -118,6 +121,8 @@ class SiteDataBuilder {
         volumeScale: Math.round(volumeScale * 100) / 100,
         rawVolume,
         volumeMetric,
+        observationCount: historyRows.length,
+        lastObservedAt: historyRows.length ? historyRows[historyRows.length - 1].observed_at : null,
         history,
         metrics: metricsMap,
         scores: scoresMap,
@@ -136,6 +141,12 @@ class SiteDataBuilder {
         generatedAt: new Date().toISOString(),
         totalApps: compiledApps.length,
         catalogApps: catalogSize,
+        scoredApps30d: compiledApps.filter(app => app.scores?.['30d'] &&
+          Object.keys(app.scores['30d']).length > 0).length,
+        platformCounts: {
+          android: compiledApps.filter(app => app.platform === 'android').length,
+          ios: compiledApps.filter(app => app.platform === 'ios').length
+        },
         exportScope: 'Observed applications only; catalog entries without snapshots excluded.',
         windows: ['7d', '14d', '30d', '90d', 'all'],
         models: [
@@ -143,8 +154,8 @@ class SiteDataBuilder {
           { id: 'model_b_compounder', name: 'Sustained Growth (Mode B)' },
           { id: 'model_a_growth', name: 'Absolute Volume (Model A)' }
         ],
-        areaDimensionDefinition: 'Log10(Observed Installs / Ratings + 1) — Proxy for Observed Scale (NOT market share)',
-        colorDimensionDefinition: 'Selected Model Trend Score (Purple: negative / neutral, Gray: baseline, Green: high breakout momentum)'
+        areaDimensionDefinition: 'Combined Android+iOS: equal cells (different source units). Platform-specific: log10 observed counter; NOT market share.',
+        colorDimensionDefinition: 'Relative percentile per platform for available signals; gray = insufficient evidence. Scores are provisional.'
       },
       apps: compiledApps
     };

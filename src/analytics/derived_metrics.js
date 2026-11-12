@@ -49,6 +49,12 @@ function calculateWindow(series, platform, window, now, priorShrinkage, storefro
   const last = points[points.length - 1];
   const duration = (last.t - first.t) / DAY_MS;
   if (duration <= 0) return null;
+  // A window's score must represent most of the selected window, not just
+  // three measurements within the last two days of a 90-day window.
+  const minimumSpanDays = window.days === null ? 2 : window.days * 0.6;
+  if (duration < minimumSpanDays) return null;
+  // Avoid assigning current trend labels to a stale observation series.
+  if (endMs - last.t > 48 * 60 * 60 * 1000) return null;
 
   const intervals = [];
   for (let i = 1; i < points.length; i++) {

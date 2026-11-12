@@ -1,447 +1,442 @@
-// TrendLab Interactive Canvas Treemap & Dashboard Controller (Karpathy Jobs Style)
+'use strict';
 
 class TrendLabApp {
   constructor() {
     this.dataset = null;
-    this.currentWindow = '30d';
-    this.currentPlatform = 'all';
-    this.currentColor = 'model_c_breakout';
-    this.searchQuery = '';
-    this.viewMode = 'treemap'; // 'treemap' | 'split' | 'table'
-
+    this.window = '30d';
+    this.platform = 'all';
+    this.metric = 'model_c_breakout';
+    this.search = '';
     this.rects = [];
     this.hovered = null;
-    this.dpr = window.devicePixelRatio || 1;
-
-    // Elements
-    this.mainViewport = document.getElementById('mainViewport');
+    this.selected = null;
     this.canvasPane = document.getElementById('canvasPane');
     this.canvas = document.getElementById('treemapCanvas');
     this.ctx = this.canvas.getContext('2d');
     this.tooltip = document.getElementById('canvasTooltip');
-
-    this.leaderboardBody = document.getElementById('leaderboardBody');
-    this.tableCount = document.getElementById('tableCount');
-    this.drawerOverlay = document.getElementById('drawerOverlay');
-
-    this.initEvents();
+    this.side = document.getElementById('leaderboardBody');
+    this.legendCache = new Map();
+    this.attachEvents();
     this.loadData();
   }
 
-  initEvents() {
-    // View Toggles (Treemap, Split, Table)
-    document.getElementById('btnViewTreemap').addEventListener('click', () => this.setViewMode('treemap'));
-    document.getElementById('btnViewSplit').addEventListener('click', () => this.setViewMode('split'));
-    document.getElementById('btnViewTable').addEventListener('click', () => this.setViewMode('table'));
-
-    // Window Toggles (7d, 14d, 30d, 90d, all)
-    document.querySelectorAll('#windowToggle .toggle-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        document.querySelectorAll('#windowToggle .toggle-btn').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-        this.currentWindow = e.target.dataset.window;
+  attachEvents() {
+    for (const name of ['platform', 'window']) {
+      const element = document.getElementById(name + 'Toggle');
+      element.addEventListener('click', e => {
+        const button = e.target.closest('button[data-' + name + ']');
+        if (!button) return;
+        this[name] = button.dataset[name];
+        for (const el of element.querySelectorAll('button')) el.classList.toggle('active', el === button);
         this.render();
       });
-    });
-
-    // Platform Toggles (all, android, ios)
-    document.querySelectorAll('#platformToggle .toggle-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        document.querySelectorAll('#platformToggle .toggle-btn').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
-        this.currentPlatform = e.target.dataset.platform;
-        this.render();
-      });
-    });
-
-    // Color Signal Selector
-    document.getElementById('colorSelect').addEventListener('change', (e) => {
-      this.currentColor = e.target.value;
-      this.render();
-    });
-
-    // Search Input
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-      this.searchQuery = e.target.value.toLowerCase().trim();
-      this.render();
-    });
-
-    // Canvas Mouse Interactions
-    this.canvas.addEventListener('mousemove', (e) => this.handleCanvasMouseMove(e));
-    this.canvas.addEventListener('mouseleave', () => this.handleCanvasMouseLeave());
-    this.canvas.addEventListener('click', (e) => this.handleCanvasClick(e));
-
-    // Drawer Close
-    document.getElementById('drawerClose').addEventListener('click', () => {
-      this.drawerOverlay.classList.add('hidden');
-    });
-
-    this.drawerOverlay.addEventListener('click', (e) => {
-      if (e.target === this.drawerOverlay) {
-        this.drawerOverlay.classList.add('hidden');
-      }
-    });
-
-    // Window Resize Handling (Fluid full-window scaling)
-    window.addEventListener('resize', () => {
-      this.layoutAndDrawCanvas();
-    });
-
-    // ResizeObserver on canvas pane for robust sub-pixel tracking
-    if (window.ResizeObserver) {
-      new ResizeObserver(() => {
-        this.layoutAndDrawCanvas();
-      }).observe(this.canvasPane);
     }
-  }
-
-  setViewMode(mode) {
-    this.viewMode = mode;
-    this.mainViewport.className = `main-viewport view-${mode}`;
-
-    document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-    if (mode === 'treemap') document.getElementById('btnViewTreemap').classList.add('active');
-    if (mode === 'split') document.getElementById('btnViewSplit').classList.add('active');
-    if (mode === 'table') document.getElementById('btnViewTable').classList.add('active');
-
-    setTimeout(() => this.layoutAndDrawCanvas(), 50);
+    document.getElementById('colorSelect').addEventListener('change', e => {
+      this.metric = e.target.value; this.render();
+    });
+    document.getElementById('searchInput').addEventListener('input', e => {
+      this.search = e.target.value.toLocaleLowerCase().trim(); this.render();
+    });
+    this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
+    this.canvas.addEventListener('mouseleave', () => { this.hovered = null; this.tooltip.classList.add('hidden'); this.drawCanvas(); });
+    this.canvas.addEventListener('click', () => { if (this.hovered) this.openApp(this.hovered.app); });
+    document.getElementById('drawerBackdrop').addEventListener('click', () => this.closeDrawer());
+    document.getElementById('drawerClose').addEventListener('click', () => this.closeDrawer());
+    window.addEventListener('keydown', e => { if (e.key === 'Escape') this.closeDrawer(); });
+    window.addEventListener('resize', () => this.layoutAndDraw());
+    if (window.ResizeObserver) new ResizeObserver(() => this.layoutAndDraw()).observe(this.canvasPane);
   }
 
   async loadData() {
     try {
-      const res = await fetch('data/data.json?t=' + Date.now());
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      this.dataset = await res.json();
-
-      document.getElementById('metaTotalApps').textContent = `Catalog: ${this.dataset.meta.totalApps} Apps`;
-      document.getElementById('metaLastUpdated').textContent = `Updated: ${new Date(this.dataset.meta.generatedAt).toLocaleDateString()}`;
-
+      const response = await fetch('data/data.json?t=' + Date.now());
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      this.dataset = await response.json();
       this.render();
-    } catch (err) {
-      console.error('Failed to load data.json:', err);
+    } catch (error) {
+      document.getElementById('emptyMessage').textContent = 'Unable to load data.json — run the export command first.';
+      document.getElementById('emptyMessage').classList.remove('hidden');
+      console.error('[TrendLab] Dataset:', error);
     }
   }
 
-  getFilteredApps() {
-    if (!this.dataset || !this.dataset.apps) return [];
+  formatCount(value) {
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+    return new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(Number(value));
+  }
 
-    return this.dataset.apps.filter(app => {
-      // Platform filter
-      if (this.currentPlatform !== 'all' && app.platform !== this.currentPlatform) {
-        return false;
-      }
-      // Search filter
-      if (this.searchQuery) {
-        const matchesTitle = app.title.toLowerCase().includes(this.searchQuery);
-        const matchesDev = (app.developer || '').toLowerCase().includes(this.searchQuery);
-        if (!matchesTitle && !matchesDev) return false;
-      }
-      return true;
+  compact(value) {
+    if (!Number.isFinite(Number(value)) || value === null) return '—';
+    return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value));
+  }
+
+  getScore(app) {
+    if (this.metric === 'rating_velocity') {
+      const m = app.metrics && app.metrics[this.window];
+      return m && Number.isFinite(m.ratingVelocity) ? m.ratingVelocity : null;
+    }
+    const value = app.scores && app.scores[this.window] && app.scores[this.window][this.metric];
+    return value && Number.isFinite(value.score) ? value.score : null;
+  }
+
+  filtered() {
+    return (this.dataset?.apps || []).filter(app => {
+      if (this.platform !== 'all' && app.platform !== this.platform) return false;
+      if (!this.search) return true;
+      return (app.title || '').toLocaleLowerCase().includes(this.search) ||
+        (app.developer || '').toLocaleLowerCase().includes(this.search);
     });
   }
 
-  getAppScore(app) {
-    if (this.currentColor === 'rating_velocity') {
-      const metrics = app.metrics && app.metrics[this.currentWindow];
-      return metrics ? Number(metrics.ratingVelocity) || 0 : 0;
-    }
-    const scores = app.scores && app.scores[this.currentWindow];
-    if (scores && scores[this.currentColor]) {
-      return Number(scores[this.currentColor].score) || 0;
-    }
-    return 0;
+  getRange(platform) {
+    const key = this.window + ':' + this.metric + ':' + platform;
+    if (this.legendCache.has(key)) return this.legendCache.get(key);
+    const values = (this.dataset?.apps || []).filter(a => a.platform === platform)
+      .map(a => this.getScore(a)).filter(v => v !== null && Number.isFinite(v)).sort((a, b) => a - b);
+    // Trim extreme outliers to preserve resolution for typical values.
+    const value = values.length < 2 ? null : {
+      low: values[Math.floor((values.length - 1) * 0.05)],
+      high: values[Math.floor((values.length - 1) * 0.95)]
+    };
+    this.legendCache.set(key, value);
+    return value;
   }
 
-  getColorForScore(score, minScore, maxScore, isHovered = false) {
-    if (maxScore <= minScore) return isHovered ? '#475569' : '#334155';
-    const norm = Math.max(0, Math.min(1, (score - minScore) / (maxScore - minScore)));
-
-    // Multi-stop Karpathy color scale:
-    // Purple (0.0) -> Slate (0.4) -> Teal (0.7) -> Emerald Green (1.0)
-    let r, g, b;
-    if (norm < 0.4) {
-      const t = norm / 0.4;
-      r = Math.round(76 + t * (55 - 76));
-      g = Math.round(29 + t * (65 - 29));
-      b = Math.round(149 + t * (81 - 149));
-    } else if (norm < 0.7) {
-      const t = (norm - 0.4) / 0.3;
-      r = Math.round(55 + t * (15 - 55));
-      g = Math.round(65 + t * (118 - 65));
-      b = Math.round(81 + t * (110 - 81));
-    } else {
-      const t = (norm - 0.7) / 0.3;
-      r = Math.round(15 + t * (16 - 15));
-      g = Math.round(118 + t * (185 - 118));
-      b = Math.round(110 + t * (129 - 110));
-    }
-
-    if (isHovered) {
-      r = Math.min(255, r + 40);
-      g = Math.min(255, g + 40);
-      b = Math.min(255, b + 40);
-    }
-
-    return `rgb(${r}, ${g}, ${b})`;
+  colorFor(app) {
+    const score = this.getScore(app);
+    if (score === null) return '#34424e';
+    const range = this.getRange(app.platform);
+    const normalized = range && range.high > range.low ?
+      Math.min(1, Math.max(0, (score - range.low) / (range.high - range.low))) : 0.55;
+    // Sequential palette: low signal is muted ochre, high is green.
+    const stops = [
+      [100, 84, 60],
+      [107, 112, 60],
+      [48, 132, 84],
+      [28, 107, 69]
+    ];
+    const t = normalized * (stops.length - 1);
+    const i = Math.min(stops.length - 2, Math.floor(t));
+    const blend = t - i;
+    return 'rgb(' + stops[i].map((v, k) =>
+      Math.round(v + (stops[i + 1][k] - v) * blend)).join(',') + ')';
   }
 
   render() {
-    this.layoutAndDrawCanvas();
-    this.renderLeaderboard();
+    if (!this.dataset) return;
+    this.legendCache.clear();
+    const apps = this.filtered();
+    const catalog = this.dataset.meta?.catalogApps || 0;
+    const observed = this.dataset.meta?.totalApps || this.dataset.apps.length;
+    const scored = apps.filter(app => this.getScore(app) !== null).length;
+    const fresh = (this.dataset.apps || []).filter(app =>
+      app.lastObservedAt && Date.now() - Date.parse(app.lastObservedAt) <= 48 * 3600000 &&
+      Date.now() - Date.parse(app.lastObservedAt) >= 0).length;
+
+    document.getElementById('kpiCatalog').textContent = this.compact(catalog);
+    document.getElementById('kpiObserved').textContent = this.compact(observed);
+    document.getElementById('kpiScored').textContent = this.formatCount(scored);
+    document.getElementById('kpiCoverage').textContent = catalog ? (100 * observed / catalog).toFixed(2) + '%' : '—';
+    document.getElementById('kpiFresh').textContent = this.formatCount(fresh);
+    document.getElementById('metaLastUpdated').textContent = this.dataset.meta?.generatedAt ?
+      'Exported ' + new Date(this.dataset.meta.generatedAt).toLocaleString() : 'No export date';
+    document.getElementById('visibleCount').textContent = this.formatCount(apps.length) + ' apps visible';
+    document.getElementById('qualityCount').textContent = this.formatCount(scored) + ' with signal';
+    document.getElementById('tableCount').textContent = this.formatCount(apps.length);
+    document.getElementById('mapSubheading').textContent = this.formatCount(apps.length - scored) + ' unscored · muted gray';
+    document.getElementById('areaExplanation').textContent = this.platform === 'all' ?
+      'Mixed platforms: equal tile weights because Android install counters and iOS ratings cannot be combined. Color scales are calculated within each platform.' :
+      'Tile area uses log10 of the latest observed ' +
+      (this.platform === 'android' ? 'Android install counter or rating count' : 'iOS rating count') +
+      '. This is not market share. Color compares the selected signal within this platform.';
+    this.layoutAndDraw(apps);
+    this.renderDirectory(apps);
   }
 
-  layoutAndDrawCanvas() {
-    if (this.viewMode === 'table') return;
-
+  layoutAndDraw(apps = this.filtered()) {
+    if (!this.dataset) return;
     const w = this.canvasPane.clientWidth;
     const h = this.canvasPane.clientHeight;
-    if (w <= 0 || h <= 0) return;
-
-    this.dpr = window.devicePixelRatio || 1;
+    if (!w || !h) return;
+    this.dpr = Math.min(2, window.devicePixelRatio || 1);
     this.canvas.width = Math.round(w * this.dpr);
     this.canvas.height = Math.round(h * this.dpr);
-    this.canvas.style.width = `${w}px`;
-    this.canvas.style.height = `${h}px`;
-
-    const apps = this.getFilteredApps();
-    if (apps.length === 0) {
-      this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-      this.ctx.fillStyle = '#0a0c10';
-      this.ctx.fillRect(0, 0, w, h);
-      this.ctx.fillStyle = '#8b949e';
-      this.ctx.font = '14px -apple-system, sans-serif';
-      this.ctx.textAlign = 'center';
-      this.ctx.fillText('No apps matching current filters', w / 2, h / 2);
-      this.rects = [];
+    this.canvas.style.width = w + 'px';
+    this.canvas.style.height = h + 'px';
+    this.rects = [];
+    const msg = document.getElementById('emptyMessage');
+    msg.classList.toggle('hidden', apps.length > 0);
+    if (!apps.length) {
+      msg.textContent = 'No observed apps match these filters.';
       return;
     }
-
-    // Weight is Log10(volume + 1)
     const items = apps.map(app => ({
       app,
-      weight: Math.max(0.5, app.volumeScale || 1.0)
-    }));
-
-    // Squarified layout padding
-    const PADDING = 4;
-    this.rects = SquarifiedTreemap.squarify(
-      items,
-      PADDING,
-      PADDING,
-      w - PADDING * 2,
-      h - PADDING * 2
-    );
-
+      weight: this.platform === 'all' ? 1 : Math.max(1, Number(app.volumeScale) || 1)
+    })).sort((a, b) => b.weight - a.weight || a.app.title.localeCompare(b.app.title));
+    this.rects = SquarifiedTreemap.squarify(items, 2, 2, w - 4, h - 4);
     this.drawCanvas();
+  }
+
+  truncate(text, width) {
+    const s = String(text || '');
+    if (this.ctx.measureText(s).width <= width) return s;
+    let lo = 0, hi = s.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (this.ctx.measureText(s.slice(0, mid) + '…').width <= width) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo ? s.slice(0, lo) + '…' : '';
   }
 
   drawCanvas() {
-    const w = this.canvas.width / this.dpr;
-    const h = this.canvas.height / this.dpr;
-
-    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    this.ctx.fillStyle = '#0a0c10';
-    this.ctx.fillRect(0, 0, w, h);
-
-    const scores = this.rects.map(r => this.getAppScore(r.app));
-    const minScore = scores.length > 0 ? Math.min(...scores) : 0;
-    const maxScore = scores.length > 0 ? Math.max(...scores) : 100;
-
-    const GAP = 2;
-
+    if (!this.dataset) return;
+    const ctx = this.ctx;
+    const w = this.canvas.width / (this.dpr || 1);
+    const h = this.canvas.height / (this.dpr || 1);
+    ctx.setTransform(this.dpr || 1, 0, 0, this.dpr || 1, 0, 0);
+    ctx.fillStyle = '#0a1118';
+    ctx.fillRect(0, 0, w, h);
     for (const r of this.rects) {
-      const rx = r.rx + GAP / 2;
-      const ry = r.ry + GAP / 2;
-      const rw = r.rw - GAP;
-      const rh = r.rh - GAP;
-
+      const gap = 2;
+      const x = r.rx + gap / 2, y = r.ry + gap / 2;
+      const rw = r.rw - gap, rh = r.rh - gap;
       if (rw <= 0 || rh <= 0) continue;
-
-      const isHovered = (this.hovered && this.hovered.app.id === r.app.id);
-      const score = this.getAppScore(r.app);
-      const fillStyle = this.getColorForScore(score, minScore, maxScore, isHovered);
-
-      // Draw Rectangle
-      this.ctx.fillStyle = fillStyle;
-      this.ctx.fillRect(rx, ry, rw, rh);
-
-      // Stroke / Border
-      if (isHovered) {
-        this.ctx.strokeStyle = '#ffffff';
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(rx, ry, rw, rh);
-      } else {
-        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(rx, ry, rw, rh);
+      const hovered = r === this.hovered;
+      ctx.fillStyle = this.colorFor(r.app);
+      ctx.fillRect(x, y, rw, rh);
+      if (hovered) {
+        ctx.strokeStyle = '#f6fff7';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, rw - 2, rh - 2);
       }
-
-      // Draw Labels if rectangle is large enough
-      if (rw > 35 && rh > 20) {
-        this.ctx.save();
-        this.ctx.beginPath();
-        this.ctx.rect(rx + 2, ry + 2, rw - 4, rh - 4);
-        this.ctx.clip();
-
-        const fontSize = Math.min(12, Math.max(9, Math.min(rw / 10, rh / 3)));
-        this.ctx.font = `600 ${fontSize}px -apple-system, sans-serif`;
-        this.ctx.fillStyle = isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.95)';
-        this.ctx.textBaseline = 'top';
-        this.ctx.textAlign = 'left';
-        this.ctx.fillText(r.app.title, rx + 4, ry + 4);
-
-        if (rh > 36 && rw > 55) {
-          this.ctx.font = `500 ${Math.max(8, fontSize - 2)}px -apple-system, sans-serif`;
-          this.ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-          const platformLabel = r.app.platform.toUpperCase();
-          this.ctx.fillText(`${platformLabel} · ${score.toFixed(1)}`, rx + 4, ry + 4 + fontSize + 3);
-        }
-
-        this.ctx.restore();
+      if (rw < 50 || rh < 28) continue;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x + 4, y + 3, rw - 8, rh - 6);
+      ctx.clip();
+      const size = Math.min(13, Math.max(10, Math.min(rw / 10, rh / 3)));
+      ctx.font = '700 ' + size + 'px system-ui, sans-serif';
+      ctx.fillStyle = '#f3f7f9';
+      ctx.textBaseline = 'top';
+      const label = this.truncate(r.app.title, rw - 13);
+      ctx.fillText(label, x + 6, y + 6);
+      if (rh > 44 && rw > 72) {
+        ctx.font = '500 ' + Math.max(9, size - 2) + 'px system-ui, sans-serif';
+        ctx.fillStyle = '#e2e8e8';
+        const score = this.getScore(r.app);
+        const subtitle = score === null ? 'Insufficient data' :
+          (r.app.platform.toUpperCase() + ' · Signal ' + score.toFixed(1));
+        ctx.fillText(this.truncate(subtitle, rw - 13), x + 6, y + 8 + size + 4);
       }
+      ctx.restore();
     }
   }
 
-  handleCanvasMouseMove(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    let found = null;
-    for (const r of this.rects) {
-      if (x >= r.rx && x <= r.rx + r.rw && y >= r.ry && y <= r.ry + r.rh) {
-        found = r;
-        break;
-      }
-    }
-
+  onMouseMove(event) {
+    const bounds = this.canvas.getBoundingClientRect();
+    const x = event.clientX - bounds.left, y = event.clientY - bounds.top;
+    const found = this.rects.find(r =>
+      x >= r.rx && x <= r.rx + r.rw && y >= r.ry && y <= r.ry + r.rh) || null;
     if (found !== this.hovered) {
       this.hovered = found;
-      this.drawCanvas();
-
-      if (found) {
+      if (!found) this.tooltip.classList.add('hidden');
+      else {
         const app = found.app;
-        const score = this.getAppScore(app);
-        const volumeStr = (app.rawVolume || 0).toLocaleString();
-
-        this.tooltip.innerHTML = `
-          <div class="tooltip-title">${app.title}</div>
-          <div class="tooltip-dev">${app.developer} (${app.platform.toUpperCase()})</div>
-          <div class="tooltip-stat">
-            <span>Trend Score:</span>
-            <strong style="color: #4ade80;">${score.toFixed(1)}</strong>
-          </div>
-          <div class="tooltip-stat">
-            <span>Observed Volume:</span>
-            <strong>${volumeStr}</strong>
-          </div>
-        `;
+        this.tooltip.replaceChildren();
+        const title = document.createElement('div');
+        title.className = 'tip-title';
+        title.textContent = app.title;
+        const desc = document.createElement('div');
+        desc.className = 'tip-muted';
+        desc.textContent = (app.developer || 'Unknown developer') + ' · ' + app.platform.toUpperCase();
+        const info = document.createElement('div');
+        info.className = 'tip-value';
+        const score = this.getScore(app);
+        info.textContent = score === null ? 'Insufficient trend data' :
+          ('Observed signal: ' + score.toFixed(2));
+        const freshness = document.createElement('div');
+        freshness.className = 'tip-muted';
+        freshness.textContent = 'Latest: ' + (app.lastObservedAt ?
+          new Date(app.lastObservedAt).toLocaleDateString() : 'Unknown');
+        this.tooltip.append(title, desc, info, freshness);
         this.tooltip.classList.remove('hidden');
-      } else {
-        this.tooltip.classList.add('hidden');
+      }
+      this.drawCanvas();
+    }
+    if (found) {
+      const maxX = bounds.width - 285;
+      this.tooltip.style.left = Math.max(8, Math.min(x + 18, maxX)) + 'px';
+      this.tooltip.style.top = Math.max(8, Math.min(y + 16, bounds.height - 110)) + 'px';
+    }
+  }
+
+  renderDirectory(apps) {
+    this.side.replaceChildren();
+    const groups = this.platform === 'all' ? ['android', 'ios'] : [this.platform];
+    for (const platform of groups) {
+      const subset = apps.filter(a => a.platform === platform);
+      subset.sort((a, b) => {
+        const x = this.getScore(a), y = this.getScore(b);
+        if (x === null && y !== null) return 1;
+        if (y === null && x !== null) return -1;
+        if (x !== null && y !== null) return y - x;
+        return (b.lastObservedAt || '').localeCompare(a.lastObservedAt || '');
+      });
+      if (!subset.length) continue;
+      const section = document.createElement('div');
+      section.className = 'rank-group';
+      section.textContent = platform.toUpperCase() + ' · ' + this.formatCount(subset.length) + ' observed';
+      this.side.appendChild(section);
+      const MAX_VISIBLE = 120;
+      subset.slice(0, MAX_VISIBLE).forEach((app, i) => {
+        const button = document.createElement('button');
+        button.className = 'rank-row';
+        button.type = 'button';
+        const index = document.createElement('span');
+        index.className = 'rank-number';
+        index.textContent = this.getScore(app) === null ? '—' : String(i + 1).padStart(2, '0');
+        const middle = document.createElement('span');
+        middle.className = 'rank-middle';
+        const title = document.createElement('div');
+        title.className = 'rank-name';
+        title.textContent = app.title;
+        const detail = document.createElement('div');
+        detail.className = 'rank-details';
+        detail.textContent = (app.developer || 'Unknown developer').slice(0, 40);
+        middle.append(title, detail);
+        const score = document.createElement('span');
+        const value = this.getScore(app);
+        score.className = 'rank-score' + (value === null ? ' unknown' : '');
+        score.textContent = value === null ? 'N/A' : value.toFixed(1);
+        button.append(index, middle, score);
+        button.addEventListener('click', () => this.openApp(app));
+        this.side.appendChild(button);
+      });
+      if (subset.length > MAX_VISIBLE) {
+        const note = document.createElement('div');
+        note.className = 'ranking-empty';
+        note.textContent = 'Showing first ' + MAX_VISIBLE +
+          ' of ' + subset.length + ' · search to find other apps';
+        this.side.appendChild(note);
       }
     }
-
-    if (found) {
-      // Keep tooltip inside canvas pane
-      const paneW = this.canvasPane.clientWidth;
-      const paneH = this.canvasPane.clientHeight;
-      let tx = x + 16;
-      let ty = y + 16;
-      if (tx + 240 > paneW) tx = x - 250;
-      if (ty + 100 > paneH) ty = y - 110;
-      this.tooltip.style.left = `${Math.max(8, tx)}px`;
-      this.tooltip.style.top = `${Math.max(8, ty)}px`;
+    if (!apps.length) {
+      const p = document.createElement('div');
+      p.className = 'ranking-empty';
+      p.textContent = 'No apps match this search.';
+      this.side.appendChild(p);
     }
   }
 
-  handleCanvasMouseLeave() {
-    this.hovered = null;
-    this.tooltip.classList.add('hidden');
-    this.drawCanvas();
+  setText(id, value) {
+    document.getElementById(id).textContent = value === undefined || value === null ? '—' : String(value);
   }
 
-  handleCanvasClick(e) {
-    if (this.hovered) {
-      this.openAppInspection(this.hovered.app);
-    }
+  openApp(app) {
+    this.selected = app;
+    this.setText('modalTitle', app.title);
+    this.setText('modalDeveloper', app.developer || 'Unknown developer');
+    this.setText('modalPlatform', app.platform.toUpperCase() +
+      (app.platform === 'ios' ? ' · Storefront ' + (app.storefront === 'global' ? 'US signal' : app.storefront) : ''));
+    const score = this.getScore(app);
+    const metric = app.metrics && app.metrics[this.window];
+    const hasEvidence = score !== null;
+    const notice = document.getElementById('modalNotice');
+    notice.classList.toggle('unknown', !hasEvidence);
+    notice.textContent = hasEvidence ?
+      'Provisional signal calculated from observed changes. This is not a verified download forecast or a validated growth ranking.' :
+      'Insufficient history for this selected signal and time window. No trend conclusion is available; N/A is not a zero score.';
+    this.setText('modalVolume', this.formatCount(app.rawVolume));
+    this.setText('modalVolumeType', app.volumeMetric ?
+      app.volumeMetric.replaceAll('_', ' ') : 'No observed counter');
+    this.setText('modalScore', score === null ? 'N/A' : score.toFixed(2));
+    this.setText('modalScoreType', this.metric.replaceAll('_', ' ') + ' · ' + this.window);
+    this.setText('modalVelocity', metric && Number.isFinite(metric.ratingVelocity) ?
+      metric.ratingVelocity.toFixed(2) + '/d' : 'N/A');
+    this.setText('modalCompleteness', metric && Number.isFinite(metric.completeness) ?
+      (metric.completeness * 100).toFixed(0) + '%' : 'N/A');
+    this.setText('modalHistoryCount', this.formatCount(app.observationCount || app.history?.length || 0) + ' observations');
+
+    const provenance = app.provenance;
+    this.setText('modalSource', provenance?.sourceName || 'Chart / observation only');
+    this.setText('modalMethod', provenance?.fetchMethod || 'No raw payload metadata');
+    this.setText('modalLastObserved', app.lastObservedAt ?
+      new Date(app.lastObservedAt).toLocaleString() : 'N/A');
+    this.setText('modalSha', provenance?.sha256 || 'N/A');
+    const link = document.getElementById('modalStoreLink');
+    link.href = app.platform === 'android' ?
+      'https://play.google.com/store/apps/details?id=' + encodeURIComponent(app.nativeStoreId) :
+      'https://apps.apple.com/app/id' + encodeURIComponent(app.nativeStoreId);
+    this.renderHistory(app);
+    document.getElementById('drawerOverlay').classList.remove('hidden');
+    document.getElementById('drawerClose').focus();
   }
 
-  renderLeaderboard() {
-    const apps = this.getFilteredApps();
-    this.tableCount.textContent = `${apps.length} apps`;
-
-    // Sort descending by selected score
-    apps.sort((a, b) => this.getAppScore(b) - this.getAppScore(a));
-
-    this.leaderboardBody.innerHTML = '';
-    apps.forEach((app, idx) => {
-      const score = this.getAppScore(app);
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="font-weight: 700; color: #388bfd;">#${idx + 1}</td>
-        <td>
-          <div style="font-weight: 600; color: #fff;">${app.title}</div>
-          <div style="font-size: 10px; color: #8b949e;">${app.developer}</div>
-        </td>
-        <td><span class="badge badge-${app.platform}">${app.platform.toUpperCase()}</span></td>
-        <td style="font-weight: 700; color: #4ade80;">${score.toFixed(1)}</td>
-        <td style="color: #cbd5e1;">${(app.rawVolume || 0).toLocaleString()}</td>
-      `;
-      tr.addEventListener('click', () => this.openAppInspection(app));
-      this.leaderboardBody.appendChild(tr);
-    });
-  }
-
-  openAppInspection(app) {
-    document.getElementById('modalTitle').textContent = app.title;
-    document.getElementById('modalDeveloper').textContent = app.developer;
-
-    const platBadge = document.getElementById('modalPlatform');
-    platBadge.textContent = app.platform.toUpperCase();
-    platBadge.className = `badge badge-${app.platform}`;
-
-    document.getElementById('modalVolume').textContent = (app.rawVolume || 0).toLocaleString();
-    document.getElementById('modalScore').textContent = this.getAppScore(app).toFixed(2);
-
-    const metrics = app.metrics && app.metrics[this.currentWindow];
-    document.getElementById('modalVelocity').textContent = metrics ? `${Number(metrics.ratingVelocity).toFixed(1)}/day` : 'N/A';
-    document.getElementById('modalCompleteness').textContent = metrics ? `${Math.round(Number(metrics.completeness) * 100)}%` : '100%';
-
-    const prov = app.provenance;
-    document.getElementById('modalSource').textContent = prov ? prov.sourceName : 'Store API';
-    document.getElementById('modalMethod').textContent = prov ? prov.fetchMethod : 'Direct Ingestion';
-    document.getElementById('modalSha').textContent = prov ? prov.sha256 : 'N/A';
-    document.getElementById('modalLastObserved').textContent = prov ? new Date(prov.lastObservedAt).toLocaleString() : 'N/A';
-
-    const storeLink = document.getElementById('modalStoreLink');
-    if (app.platform === 'android') {
-      storeLink.href = `https://play.google.com/store/apps/details?id=${app.nativeStoreId}`;
+  renderHistory(app) {
+    const chart = document.getElementById('historyChart');
+    chart.replaceChildren();
+    const history = (app.history || []).filter(point => app.platform !== 'ios' ||
+      point.storefront === 'us' || point.storefront === app.storefront);
+    const field = app.platform === 'android' && history.some(p => Number.isFinite(p.installs)) ?
+      'installs' : 'ratings';
+    const valid = history.filter(p => Number.isFinite(p[field])).sort((a, b) =>
+      Date.parse(a.t) - Date.parse(b.t));
+    if (valid.length < 2) {
+      chart.textContent = 'More dated observations are needed to draw a trend.';
     } else {
-      storeLink.href = `https://apps.apple.com/${app.storefront || 'us'}/app/id${app.nativeStoreId}`;
+      const NS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('viewBox', '0 0 440 105');
+      svg.setAttribute('preserveAspectRatio', 'none');
+      const values = valid.map(p => p[field]);
+      const min = Math.min(...values), max = Math.max(...values), diff = Math.max(1, max - min);
+      const firstTime = Date.parse(valid[0].t), lastTime = Date.parse(valid[valid.length - 1].t);
+      const duration = Math.max(1, lastTime - firstTime);
+      const points = valid.map(p => {
+        const x = 12 + (Date.parse(p.t) - firstTime) / duration * 416;
+        const y = 88 - (p[field] - min) / diff * 66;
+        return x.toFixed(2) + ',' + y.toFixed(2);
+      }).join(' ');
+      const grid = document.createElementNS(NS, 'line');
+      grid.setAttribute('x1', '12'); grid.setAttribute('y1', '90');
+      grid.setAttribute('x2', '428'); grid.setAttribute('y2', '90');
+      grid.setAttribute('stroke', '#415462');
+      const polyline = document.createElementNS(NS, 'polyline');
+      polyline.setAttribute('points', points);
+      polyline.setAttribute('fill', 'none');
+      polyline.setAttribute('stroke', '#9fcf94');
+      polyline.setAttribute('stroke-width', '2.5');
+      polyline.setAttribute('vector-effect', 'non-scaling-stroke');
+      svg.append(grid, polyline); chart.append(svg);
     }
-
-    const historyContainer = document.getElementById('historyTableContainer');
-    if (app.history && app.history.length > 0) {
-      let rowsHtml = '<table class="leaderboard-table" style="font-size: 10px;"><thead><tr><th>Timestamp</th><th>Observed Value</th><th>Rating</th></tr></thead><tbody>';
-      app.history.forEach(h => {
-        const val = h.installs || h.ratings || 0;
-        rowsHtml += `<tr>
-          <td>${new Date(h.t).toLocaleString()}</td>
-          <td>${val.toLocaleString()}</td>
-          <td>${h.score ? h.score.toFixed(2) : '-'}</td>
-        </tr>`;
-      });
-      rowsHtml += '</tbody></table>';
-      historyContainer.innerHTML = rowsHtml;
-    } else {
-      historyContainer.innerHTML = '<div style="color: #8b949e; font-size: 11px;">No historical snapshots recorded yet.</div>';
+    const container = document.getElementById('historyTableContainer');
+    container.replaceChildren();
+    const table = document.createElement('table');
+    table.className = 'history-table';
+    const head = document.createElement('tr');
+    for (const col of ['Observed at', 'Storefront', 'Value / rank']) {
+      const th = document.createElement('th'); th.textContent = col; head.append(th);
     }
-
-    this.drawerOverlay.classList.remove('hidden');
+    table.append(head);
+    for (const point of history.slice(-12).reverse()) {
+      const row = document.createElement('tr');
+      const pieces = [
+        new Date(point.t).toLocaleString(),
+        point.storefront || '—',
+        Number.isFinite(point[field]) ? this.formatCount(point[field]) :
+          (point.rank !== null && point.rank !== undefined ? '#' + point.rank : '—')
+      ];
+      for (const value of pieces) {
+        const td = document.createElement('td'); td.textContent = value; row.append(td);
+      }
+      table.append(row);
+    }
+    container.append(table);
   }
+
+  closeDrawer() { document.getElementById('drawerOverlay').classList.add('hidden'); }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-  new TrendLabApp();
-});
+window.addEventListener('DOMContentLoaded', () => { window.trendlab = new TrendLabApp(); });

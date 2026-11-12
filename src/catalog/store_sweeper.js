@@ -26,15 +26,27 @@ class StoreSweeper {
         });
 
         console.log(`    -> Received ${apps.length} apps from [${sf.toUpperCase()}].`);
-        for (const item of apps) {
-          this.repo.upsertPlatformApp({
+        // A single iOS app identity is shared by storefronts. Store chart
+        // observations separately so that its country-specific rank is retained.
+        const observedAt = new Date().toISOString();
+        for (const [index, item] of apps.entries()) {
+          if (!item.id || !item.title) continue;
+          const platformAppId = this.repo.upsertPlatformApp({
             platform: 'ios',
             nativeStoreId: String(item.id),
             title: item.title,
             developerName: item.developer,
             primaryGenre: 'Education',
+            storefront: 'global',
+            price: item.price ?? 0
+          });
+          this.repo.recordObservedMetrics({
+            platformAppId,
+            observedAt,
             storefront: sf,
-            price: item.price || 0.0
+            rank: index + 1,
+            rankChartType: 'TOP_FREE_EDUCATION',
+            flags: JSON.stringify(['TOP_CHART_LIMITED_DISCOVERY'])
           });
           totalDiscovered++;
         }
@@ -65,9 +77,10 @@ class StoreSweeper {
           country
         });
         console.log(`  Google Play Top Free Education [${country}]: ${apps.length} rows`);
-        for (const item of apps) {
+        const observedAt = new Date().toISOString();
+        for (const [index, item] of apps.entries()) {
           if (!item.appId || !item.title) continue;
-          this.repo.upsertPlatformApp({
+          const platformAppId = this.repo.upsertPlatformApp({
             platform: 'android',
             nativeStoreId: item.appId,
             title: item.title,
@@ -75,7 +88,15 @@ class StoreSweeper {
             developerId: item.developerId,
             primaryGenre: 'EDUCATION',
             storefront: 'global',
-            price: item.price || 0.0
+            price: item.price ?? 0
+          });
+          this.repo.recordObservedMetrics({
+            platformAppId,
+            observedAt,
+            storefront: country,
+            rank: index + 1,
+            rankChartType: 'TOP_FREE_EDUCATION',
+            flags: JSON.stringify(['TOP_CHART_LIMITED_DISCOVERY'])
           });
           totalDiscovered++;
         }
