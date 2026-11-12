@@ -8,6 +8,7 @@ const SeedImporter = require('../src/catalog/seed_importer');
 const BulkCatalogImporter = require('../src/catalog/bulk_importer');
 const StoreSweeper = require('../src/catalog/store_sweeper');
 const CollectionScheduler = require('../src/collector/scheduler');
+const ContinuousCollector = require('../src/collector/continuous');
 const DerivedMetricsCalculator = require('../src/analytics/derived_metrics');
 const TrendScoringEngine = require('../src/analytics/trend_models');
 const BacktestingHarness = require('../src/validation/backtesting');
@@ -76,6 +77,21 @@ async function main() {
         androidLimit: positiveIntFlag('android-limit', 200),
         iosLimit: positiveIntFlag('ios-limit', 200),
         storefront: flag('storefront', 'us')
+      });
+      break;
+    }
+
+    case 'collect-loop': {
+      console.log('--- CONTINUOUS COLLECTION: use in place of the hourly timer, not together ---');
+      const worker = new ContinuousCollector({ scheduler: new CollectionScheduler(repo) });
+      process.on('SIGTERM', () => worker.stop());
+      process.on('SIGINT', () => worker.stop());
+      const storefronts = flag('storefronts', 'us').split(',').map(x => x.trim().toLowerCase());
+      await worker.run({
+        androidLimit: positiveIntFlag('android-limit', 100),
+        iosLimit: positiveIntFlag('ios-limit', 100),
+        storefronts,
+        pauseSeconds: positiveIntFlag('pause-seconds', 30)
       });
       break;
     }
@@ -163,7 +179,7 @@ async function main() {
         });
       });
 
-      server.listen(port, () => {
+      server.listen(port, process.env.HOST || '127.0.0.1', () => {
         console.log(`TrendLab Research Dashboard running at: http://localhost:${port}/`);
       });
       break;
@@ -178,7 +194,8 @@ Commands:
   coverage                          Report local catalog coverage and freshness
   seed --curated                    Optional small curated demo catalog (not market coverage)
   sweep [--storefronts us,gb,jp]      Discover via charts (Top-K only)
-  collect [--android-limit 200 --ios-limit 200 --storefront us]  Run due-app collection
+  collect [--android-limit 200 --ios-limit 200 --storefront us]  Run one bounded collection cycle
+  collect-loop [--android-limit 100 --ios-limit 100 --storefronts us,vn,jp --pause-seconds 30] Continuous mode
   analyze    Calculate derived metrics & trend scores
   backtest   Run model tournament & walk-forward validation
   export     Export site data artifact (data.json)
