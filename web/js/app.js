@@ -119,10 +119,10 @@ class TrendLabApp {
       Math.min(1, Math.max(0, (score - range.low) / (range.high - range.low))) : 0.55;
     // Sequential palette: low signal is muted ochre, high is green.
     const stops = [
-      [100, 84, 60],
-      [107, 112, 60],
-      [48, 132, 84],
-      [28, 107, 69]
+      [145, 42, 31],
+      [169, 103, 24],
+      [99, 133, 36],
+      [27, 121, 59]
     ];
     const t = normalized * (stops.length - 1);
     const i = Math.min(stops.length - 2, Math.floor(t));
@@ -191,7 +191,9 @@ class TrendLabApp {
 
   layoutAndDraw(apps = this.filtered()) {
     if (!this.dataset) return;
-    const scoredApps = apps.filter(app => this.getScore(app) !== null);
+    const scoredApps = ['android', 'ios'].flatMap(platform =>
+      TrendLabScale.dedupePlatformApps(apps, platform))
+      .filter(app => this.getScore(app) !== null);
     const readiness = this.renderReadiness(apps, scoredApps);
     const isScale = this.isScaleMode();
     const mapHeader = document.getElementById('mapHeading');
@@ -237,7 +239,7 @@ class TrendLabApp {
       }
       subtitle.textContent = this.formatCount(this.rects.length) + ' distinct measured apps shown · no Top-N cutoff';
       document.getElementById('mapLegend').textContent =
-        'AREA · log² source count    COLOR · user star rating (purple → green; gray = unavailable)';
+        'AREA · log² source count    COLOR · user star rating (red → green; gray = missing)';
       document.getElementById('mapFooterNote').textContent =
         'Android = unverified maxInstalls · iOS = US rating count · do not compare areas across panels';
     } else {
