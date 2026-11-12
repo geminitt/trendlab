@@ -2,7 +2,7 @@
 
 /**
  * Snapshot-based exploration, separate from unvalidated trend inference.
- * Each platform retains its own source unit; Android install thresholds are
+ * Each platform retains its own source unit; Android public maxInstalls values are
  * never added to or directly sized against iOS storefront rating counts.
  */
 const LIMIT_PER_PLATFORM = 64;
