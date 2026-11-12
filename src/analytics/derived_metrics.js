@@ -29,7 +29,7 @@ function computeTheilSenSlope(points) {
   return slopes.length % 2 ? slopes[mid] : (slopes[mid - 1] + slopes[mid]) / 2;
 }
 
-function calculateWindow(series, platform, window, now, priorShrinkage) {
+function calculateWindow(series, platform, window, now, priorShrinkage, storefront = null) {
   const endMs = now.getTime();
   const startMs = window.days === null ? -Infinity : endMs - window.days * DAY_MS;
   const field = platform === 'android' ? 'observed_install_counter' : 'observed_rating_count';
@@ -39,7 +39,8 @@ function calculateWindow(series, platform, window, now, priorShrinkage) {
     ...s,
     t: Date.parse(s.observed_at),
     val: s[field]
-  })).filter(s => Number.isFinite(s.t) && s.t >= startMs && s.t <= endMs && validCounter(s.val));
+  })).filter(s => Number.isFinite(s.t) && s.t >= startMs && s.t <= endMs && validCounter(s.val)
+    && (platform !== 'ios' || s.storefront === storefront));
   parsed.sort((a, b) => a.t - b.t);
   // Collapse duplicate timestamps, preferring the most recently loaded row.
   const points = parsed.filter((p, i) => i === 0 || p.t !== parsed[i - 1].t);
@@ -103,8 +104,17 @@ class DerivedMetricsCalculator {
     if (!series.length) return [];
     const results = [];
     const prior = config.analytics.priorShrinkage ?? 500;
+    // iOS rating counts are storefront-specific. Until the schema supports
+    // separate derived storefront series, only score the app's selected storefront.
+    const storefront = platformApp.platform === 'ios'
+      ? (platformApp.storefront && platformApp.storefront !== 'global' ? platformApp.storefront : 'us')
+      : null;
+    // Clear prior calculations for this app, including windows that no longer qualify.
+    if (this.repo.db?.prepare) {
+      this.repo.db.prepare('DELETE FROM derived_window_metrics WHERE platform_app_id = ?').run(platformApp.id);
+    }
     for (const window of WINDOWS) {
-      const metrics = calculateWindow(series, platformApp.platform, window, now, prior);
+      const metrics = calculateWindow(series, platformApp.platform, window, now, prior, storefront);
       if (!metrics) continue; // Insufficient / invalid evidence must not become a zero score.
       const row = {
         platformAppId: platformApp.id,
