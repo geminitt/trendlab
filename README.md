@@ -5,6 +5,10 @@
 
 ---
 
+## Project requirements (binding)
+
+Read [AGENTS.md](AGENTS.md) and [docs/REQUIREMENTS_ACCEPTANCE.md](docs/REQUIREMENTS_ACCEPTANCE.md) before changing architecture or declaring a feature complete. Automated supplemental Top-Chart discovery deployment: [docs/DISCOVERY_DEPLOYMENT.md](docs/DISCOVERY_DEPLOYMENT.md). **A chart sweep cannot discover all new Education apps and does not satisfy global catalog coverage.**
+
 ## Data-first workflow (new collection pipeline)
 
 The repository is a **research prototype**, not a verified global census. AppGoblin
