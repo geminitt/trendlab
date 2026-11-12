@@ -2,7 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [main, fix/data-integrity-first-pass]
+    branches: ['**']
   pull_request:
 
 jobs:
