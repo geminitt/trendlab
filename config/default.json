@@ -7,25 +7,39 @@
   "catalog": {
     "educationGenreIdIos": 6017,
     "educationCategoryAndroid": "EDUCATION",
-    "surveyedStorefronts": ["us", "vn", "gb", "de", "in", "jp"],
-    "appgoblinDataUrl": "https://raw.githubusercontent.com/ddxv/appgoblin-data/main/data/live_store_apps.tsv.xz"
+    "surveyedStorefronts": [
+      "us",
+      "vn",
+      "gb",
+      "de",
+      "in",
+      "jp"
+    ],
+    "appgoblinDataUrl": "https://github.com/appgoblin-dev/appgoblin-data"
   },
   "collector": {
     "android": {
       "requestDelayMs": 1500,
       "randomJitterMs": 500,
-      "maxConsecutiveErrors": 5
+      "maxConsecutiveErrors": 5,
+      "refreshHours": 24
     },
     "ios": {
-      "lookupBatchSize": 100,
-      "requestDelayMs": 1200,
-      "randomJitterMs": 300,
-      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 TrendLab/1.0"
+      "lookupBatchSize": 50,
+      "requestDelayMs": 3500,
+      "randomJitterMs": 500,
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 TrendLab/1.0",
+      "refreshHours": 24
     }
   },
   "analytics": {
-    "windows": ["7d", "14d", "30d", "90d"],
-    "priorShrinkage": 500.0,
+    "windows": [
+      "7d",
+      "14d",
+      "30d",
+      "90d"
+    ],
+    "priorShrinkage": 500,
     "completenessThreshold": 0.8
   }
 }
