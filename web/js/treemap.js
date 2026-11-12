@@ -2,16 +2,18 @@
 
 class SquarifiedTreemap {
   static squarify(items, x, y, w, h) {
-    if (!items || items.length === 0 || w <= 0 || h <= 0) return [];
-    if (items.length === 1) {
-      return [{ ...items[0], rx: x, ry: y, rw: w, rh: h }];
+    if (!items || !items.length || w <= 0 || h <= 0) return [];
+    // A missing, negative or zero score is never entitled to any area.
+    // Filter here as a final safeguard even if UI callers have filtered.
+    const positive = items.filter(item =>
+      typeof item.weight === 'number' && Number.isFinite(item.weight) && item.weight > 0);
+    if (!positive.length) return [];
+    if (positive.length === 1) {
+      return [{ ...positive[0], rx: x, ry: y, rw: w, rh: h }];
     }
 
-    const total = items.reduce((s, d) => s + d.weight, 0);
-    if (total === 0) return [];
-
     const results = [];
-    let remaining = [...items];
+    let remaining = positive;
     let cx = x, cy = y, cw = w, ch = h;
 
     while (remaining.length > 0) {
@@ -89,4 +91,5 @@ class SquarifiedTreemap {
   }
 }
 
-window.SquarifiedTreemap = SquarifiedTreemap;
+if (typeof window !== 'undefined') window.SquarifiedTreemap = SquarifiedTreemap;
+if (typeof module !== 'undefined' && module.exports) module.exports = SquarifiedTreemap;
