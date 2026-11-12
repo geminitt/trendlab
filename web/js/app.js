@@ -4,7 +4,7 @@ class TrendLabApp {
   constructor() {
     this.dataset = null;
     this.window = '30d';
-    this.platform = 'all';
+    this.platform = 'android';
     this.metric = 'observed_scale';
     this.search = '';
     this.rects = [];
@@ -14,7 +14,6 @@ class TrendLabApp {
     this.canvas = document.getElementById('treemapCanvas');
     this.ctx = this.canvas.getContext('2d');
     this.tooltip = document.getElementById('canvasTooltip');
-    this.side = document.getElementById('leaderboardBody');
     this.legendCache = new Map();
     this.attachEvents();
     this.loadData();
@@ -36,12 +35,16 @@ class TrendLabApp {
     });
     document.getElementById('searchInput').addEventListener('input', e => {
       this.search = e.target.value.toLocaleLowerCase().trim();
-      if (this.search) document.getElementById('directoryPanel').open = true;
       this.render();
     });
     this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
     this.canvas.addEventListener('mouseleave', () => { this.hovered = null; this.tooltip.classList.add('hidden'); this.drawCanvas(); });
     this.canvas.addEventListener('click', () => { if (this.hovered) this.openApp(this.hovered.app); });
+    document.getElementById('readinessScaleButton').addEventListener('click', () => {
+      this.metric = 'observed_scale';
+      document.getElementById('colorSelect').value = this.metric;
+      this.render();
+    });
     document.getElementById('drawerBackdrop').addEventListener('click', () => this.closeDrawer());
     document.getElementById('drawerClose').addEventListener('click', () => this.closeDrawer());
     window.addEventListener('keydown', e => { if (e.key === 'Escape') this.closeDrawer(); });
@@ -132,97 +135,57 @@ class TrendLabApp {
     if (!this.dataset) return;
     this.legendCache.clear();
     const apps = this.filtered();
-    const uniqueVisible = ['android', 'ios'].reduce((sum, platform) =>
-      sum + TrendLabScale.dedupePlatformApps(apps, platform).length, 0);
+    const uniqueApps = ['android', 'ios'].flatMap(platform =>
+      TrendLabScale.dedupePlatformApps(apps, platform));
     const catalog = this.dataset.meta?.catalogApps || 0;
     const observed = this.dataset.meta?.totalApps || this.dataset.apps.length;
-    const scored = apps.filter(app => this.getScore(app) !== null).length;
+    const ready = uniqueApps.filter(app => {
+      const models = app.scores?.[this.window];
+      return models && Object.values(models).some(entry => Number.isFinite(entry?.score));
+    }).length;
+    const scored = uniqueApps.filter(app => this.getScore(app) !== null).length;
     const fresh = (this.dataset.apps || []).filter(app =>
       app.lastObservedAt && Date.now() - Date.parse(app.lastObservedAt) <= 48 * 3600000 &&
       Date.now() - Date.parse(app.lastObservedAt) >= 0).length;
 
     document.getElementById('kpiCatalog').textContent = this.compact(catalog);
     document.getElementById('kpiObserved').textContent = this.compact(observed);
-    document.getElementById('kpiScored').textContent = this.formatCount(scored);
-    document.getElementById('kpiCoverage').textContent = catalog ? (100 * observed / catalog).toFixed(2) + '%' : '—';
+    document.getElementById('kpiScored').textContent = this.formatCount(ready);
+    document.getElementById('kpiCoverage').textContent =
+      catalog ? (100 * observed / catalog).toFixed(2) + '%' : '—';
     document.getElementById('kpiFresh').textContent = this.formatCount(fresh);
     document.getElementById('metaLastUpdated').textContent = this.dataset.meta?.generatedAt ?
       'Exported ' + new Date(this.dataset.meta.generatedAt).toLocaleString() : 'No export date';
-    document.getElementById('visibleCount').textContent = this.formatCount(uniqueVisible) + ' distinct apps visible';
+    document.getElementById('visibleCount').textContent = this.formatCount(uniqueApps.length) +
+      ' distinct observed apps in filter';
     document.getElementById('qualityCount').textContent = this.isScaleMode() ?
-      'snapshot scale · not trend' : this.formatCount(scored) + ' with signal';
-    document.getElementById('tableCount').textContent = this.formatCount(uniqueVisible);
-    document.getElementById('mapSubheading').textContent = this.formatCount(apps.length - scored) + ' unscored · muted gray';
+      'snapshot scale, not download growth' : this.formatCount(scored) + ' with selected signal';
     document.getElementById('areaExplanation').textContent = this.isScaleMode() ?
-      'OBSERVED SCALE — Snapshot-only exploration (not growth). Android public maxInstalls counter (unverified semantics) and iOS storefront rating counts occupy separate treemaps. Tile area uses log(count + 10)²; color denotes observed 1–5 star rating.' :
-      scored < 8 ?
-      'TREND — Not enough usable history for a meaningful treemap. Collection readiness is shown below; select Observed scale to explore available apps now.' :
-      'TREND — Provisional model signal, not a verified download forecast. Android and iOS cannot share a single source-unit scale.';
+      (this.platform === 'all' ?
+        'Two separate treemaps: Android maxInstalls and iOS US rating count cannot share one area scale.' :
+        this.platform === 'android' ?
+          'Area = log² of public Android maxInstalls (semantics unverified). Color = user stars.' :
+          'Area = log² of US App Store rating count. Color = US user stars.') :
+      'Color = provisional trend signal only when sufficient observations exist; not a verified download forecast.';
+
     this.layoutAndDraw(apps);
-    this.renderDirectory(apps);
-    TrendLabInsights.render(this.dataset.meta, this.dataset.apps);
   }
 
   // Show a truthful readiness dashboard while the selected window cannot
   // support a meaningful cross-app trend comparison.
   renderReadiness(apps, scoredApps) {
     const usingReadiness = !this.isScaleMode() && scoredApps.length < 8;
-    const panel = document.getElementById('readinessSurface');
-    panel.classList.toggle('hidden', !usingReadiness);
+    document.getElementById('readinessSurface').classList.toggle('hidden', !usingReadiness);
     this.canvas.classList.toggle('hidden', usingReadiness);
     document.getElementById('mapFooter').classList.toggle('hidden', usingReadiness);
     if (!usingReadiness) return false;
-
     this.tooltip.classList.add('hidden');
     this.hovered = null;
     this.rects = [];
-    const summary = TrendLabReadiness.summarizeReadiness(apps, this.window);
-    const set = (name, text) => { document.getElementById(name).textContent = text; };
-    set('readinessScored', this.formatCount(scoredApps.length));
-    set('readinessTotal', this.formatCount(apps.length) + ' apps');
-    summary.buckets.forEach((value, index) => {
-      set('readinessBucket' + index, this.formatCount(value));
-    });
-
-    const bar = document.getElementById('readinessBar');
-    bar.replaceChildren();
-    summary.buckets.forEach((value, index) => {
-      if (!value) return;
-      const segment = document.createElement('div');
-      segment.className = 'readiness-bar-segment b' + index;
-      segment.style.width = (value / Math.max(1, apps.length) * 100) + '%';
-      segment.title = ['No usable metric', 'One metric-day', 'Two metric-days', 'Three or more metric-days'][index] + ': ' + value;
-      bar.appendChild(segment);
-    });
-
-    const recents = document.getElementById('readinessRecent');
-    recents.replaceChildren();
-    const recent = [...apps].filter(app => app.lastObservedAt)
-      .sort((a, b) => (b.lastObservedAt || '').localeCompare(a.lastObservedAt || ''))
-      .slice(0, 5);
-    for (const app of recent) {
-      const item = document.createElement('button');
-      item.className = 'readiness-app';
-      item.type = 'button';
-      const name = document.createElement('span');
-      name.className = 'readiness-app-name';
-      name.textContent = app.title || 'Unknown app';
-      const detail = document.createElement('span');
-      detail.className = 'readiness-app-meta';
-      const days = TrendLabReadiness.countMetricDays(app, this.window);
-      detail.textContent = app.platform.toUpperCase() + ' · ' + days +
-        (days === 1 ? ' metric-day · ' : ' metric-days · ') +
-        new Date(app.lastObservedAt).toLocaleDateString();
-      item.append(name, detail);
-      item.addEventListener('click', () => this.openApp(app));
-      recents.appendChild(item);
-    }
-    if (!recent.length) {
-      const p = document.createElement('p');
-      p.className = 'readiness-app-meta';
-      p.textContent = 'No observations for this filter yet.';
-      recents.appendChild(p);
-    }
+    document.getElementById('readinessScored').textContent = this.formatCount(scoredApps.length);
+    document.getElementById('readinessTotal').textContent = this.formatCount(
+      ['android', 'ios'].reduce((n, platform) =>
+        n + TrendLabScale.dedupePlatformApps(apps, platform).length, 0));
     return true;
   }
 
@@ -233,7 +196,9 @@ class TrendLabApp {
     const isScale = this.isScaleMode();
     const mapHeader = document.getElementById('mapHeading');
     const subtitle = document.getElementById('mapSubheading');
-    mapHeader.textContent = isScale ? 'TOP OBSERVED APPS' :
+    mapHeader.textContent = isScale ?
+      (this.platform === 'all' ? 'OBSERVED APPS · SEPARATE UNITS' :
+        this.platform.toUpperCase() + ' · OBSERVED APPLICATIONS') :
       readiness ? 'COLLECTION READINESS' : 'TREND MAP / ' + this.window.toUpperCase();
     if (readiness) {
       subtitle.textContent = this.formatCount(apps.length - scoredApps.length) + ' apps without trend evidence';
@@ -258,7 +223,7 @@ class TrendLabApp {
       const gap = 6;
       const usableW = w - gap * (platforms.length + 1);
       const panelWidth = usableW / platforms.length;
-      const top = 35;
+      const top = platforms.length > 1 ? 35 : 3;
       for (let index = 0; index < platforms.length; index++) {
         const platform = platforms[index];
         const x = gap + index * (panelWidth + gap);
@@ -270,10 +235,9 @@ class TrendLabApp {
         const rects = SquarifiedTreemap.squarify(items, x, top, panelWidth, Math.max(1, h - top - 4));
         this.rects.push(...rects);
       }
-      subtitle.textContent = this.formatCount(this.rects.length) + ' measured apps · top ' +
-        TrendLabScale.LIMIT_PER_PLATFORM + ' per platform';
+      subtitle.textContent = this.formatCount(this.rects.length) + ' distinct measured apps shown · no Top-N cutoff';
       document.getElementById('mapLegend').textContent =
-        'AREA · log² of observed source count     COLOR · 1–5★ user rating';
+        'AREA · log² source count    COLOR · user star rating (purple → green; gray = unavailable)';
       document.getElementById('mapFooterNote').textContent =
         'Android = unverified maxInstalls · iOS = US rating count · do not compare areas across panels';
     } else {
@@ -308,7 +272,7 @@ class TrendLabApp {
     ctx.setTransform(this.dpr || 1, 0, 0, this.dpr || 1, 0, 0);
     ctx.fillStyle = '#121416';
     ctx.fillRect(0, 0, w, h);
-    if (this.isScaleMode() && Array.isArray(this.mapGroups)) {
+    if (this.isScaleMode() && Array.isArray(this.mapGroups) && this.mapGroups.length > 1) {
       for (const group of this.mapGroups) {
         ctx.fillStyle = '#202523';
         ctx.fillRect(group.x, 3, group.width, 28);
@@ -413,81 +377,6 @@ class TrendLabApp {
       const maxX = bounds.width - 285;
       this.tooltip.style.left = Math.max(8, Math.min(x + 18, maxX)) + 'px';
       this.tooltip.style.top = Math.max(8, Math.min(y + 16, bounds.height - 110)) + 'px';
-    }
-  }
-
-  renderDirectory(apps) {
-    this.side.replaceChildren();
-    const groups = this.platform === 'all' ? ['android', 'ios'] : [this.platform];
-    for (const platform of groups) {
-      const subset = TrendLabScale.dedupePlatformApps(apps, platform);
-      subset.sort((a, b) => {
-        if (this.isScaleMode()) {
-          const eligible = item => item.volumeMetric ===
-            (platform === 'android' ? 'observed_install_counter' : 'observed_rating_count');
-          const x = eligible(a) && Number.isFinite(a.rawVolume) ? a.rawVolume : -1;
-          const y = eligible(b) && Number.isFinite(b.rawVolume) ? b.rawVolume : -1;
-          return y - x || a.title.localeCompare(b.title);
-        }
-        const x = this.getScore(a), y = this.getScore(b);
-        if (x === null && y !== null) return 1;
-        if (y === null && x !== null) return -1;
-        if (x !== null && y !== null) return y - x;
-        return (b.lastObservedAt || '').localeCompare(a.lastObservedAt || '');
-      });
-      if (!subset.length) continue;
-      const section = document.createElement('div');
-      section.className = 'rank-group';
-      section.textContent = platform.toUpperCase() + ' · ' + this.formatCount(subset.length) + ' observed';
-      this.side.appendChild(section);
-      const MAX_VISIBLE = 120;
-      subset.slice(0, MAX_VISIBLE).forEach((app, i) => {
-        const button = document.createElement('button');
-        button.className = 'rank-row';
-        button.type = 'button';
-        const index = document.createElement('span');
-        index.className = 'rank-number';
-        index.textContent = this.isScaleMode() ?
-          (app.volumeMetric ===
-            (platform === 'android' ? 'observed_install_counter' : 'observed_rating_count') ?
-            String(i + 1).padStart(2, '0') : '—') :
-          this.getScore(app) === null ? '—' : String(i + 1).padStart(2, '0');
-        const middle = document.createElement('span');
-        middle.className = 'rank-middle';
-        const title = document.createElement('div');
-        title.className = 'rank-name';
-        title.textContent = app.title;
-        const detail = document.createElement('div');
-        detail.className = 'rank-details';
-        const days = TrendLabReadiness.countMetricDays(app, this.window);
-        detail.textContent = (app.developer || 'Unknown developer').slice(0, 34) +
-          ' · ' + days + 'd observed';
-        middle.append(title, detail);
-        const score = document.createElement('span');
-        const value = this.getScore(app);
-        score.className = 'rank-score' + (value === null ? ' unknown' : '');
-        const scaleEligible = app.volumeMetric ===
-          (platform === 'android' ? 'observed_install_counter' : 'observed_rating_count');
-        score.textContent = this.isScaleMode() ?
-          (scaleEligible && Number.isFinite(app.rawVolume) ? this.compact(app.rawVolume) : '—') :
-          value === null ? 'Collecting' : value.toFixed(1);
-        button.append(index, middle, score);
-        button.addEventListener('click', () => this.openApp(app));
-        this.side.appendChild(button);
-      });
-      if (subset.length > MAX_VISIBLE) {
-        const note = document.createElement('div');
-        note.className = 'ranking-empty';
-        note.textContent = 'Showing first ' + MAX_VISIBLE +
-          ' of ' + subset.length + ' · search to find other apps';
-        this.side.appendChild(note);
-      }
-    }
-    if (!apps.length) {
-      const p = document.createElement('div');
-      p.className = 'ranking-empty';
-      p.textContent = 'No apps match this search.';
-      this.side.appendChild(p);
     }
   }
 
