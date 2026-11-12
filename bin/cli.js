@@ -7,6 +7,7 @@ const Repository = require('../src/storage/repository');
 const SeedImporter = require('../src/catalog/seed_importer');
 const BulkCatalogImporter = require('../src/catalog/bulk_importer');
 const StoreSweeper = require('../src/catalog/store_sweeper');
+const { CatalogSourceMonitor } = require('../src/catalog/source_monitor');
 const CollectionScheduler = require('../src/collector/scheduler');
 const ContinuousCollector = require('../src/collector/continuous');
 const DerivedMetricsCalculator = require('../src/analytics/derived_metrics');
@@ -60,13 +61,52 @@ async function main() {
       break;
     }
 
-    case 'sweep': {
-      console.log('--- COMMAND: SWEEP TOP CHARTS ---');
-      const sweeper = new StoreSweeper(repo);
-      await sweeper.sweepAppleEducationCharts(flag('storefronts')
+    case 'catalog-sync': {
+      console.log('--- COMMAND: CHECK VERSIONED CATALOG SOURCE ---');
+      const monitor = new CatalogSourceMonitor(repo);
+      const report = await monitor.run({
+        maxAgeDays: positiveIntFlag('max-age-days', 30),
+        allowStale: process.argv.includes('--allow-stale')
+      });
+      console.log(JSON.stringify(report, null, 2));
+      break;
+    }
+
+    case 'sweep':
+    case 'discover': {
+      console.log('--- COMMAND: COUNTRY TOP-CHART DISCOVERY (NOT GLOBAL CENSUS) ---');
+      const countries = flag('storefronts')
         ? flag('storefronts').split(',').map(x => x.trim().toLowerCase()).filter(Boolean)
-        : require('../config/default.json').catalog.surveyedStorefronts);
-      await sweeper.sweepGooglePlayEducationCharts();
+        : require('../config/default.json').catalog.surveyedStorefronts;
+      if (!countries.length || countries.some(x => !/^[a-z]{2}$/.test(x))) {
+        throw new Error('Invalid country/storefront list');
+      }
+      const sweeper = new StoreSweeper(repo);
+      const auditId = repo.startAuditLog('CATALOG_DISCOVERY');
+      const before = repo.db.prepare('SELECT COUNT(*) AS n FROM platform_applications').get().n;
+      try {
+        await sweeper.sweepAppleEducationCharts(countries);
+        await sweeper.sweepGooglePlayEducationCharts(countries);
+        const apple = sweeper.lastAppleStats;
+        const android = sweeper.lastAndroidStats;
+        const attempted = apple.attempted + android.attempted;
+        const succeeded = apple.succeeded + android.succeeded;
+        const failed = apple.failed + android.failed;
+        const newCatalogApps = repo.db.prepare('SELECT COUNT(*) AS n FROM platform_applications').get().n - before;
+        const status = failed > 0 ? 'PARTIAL' : 'SUCCESS';
+        repo.finishAuditLog(auditId, { status, attempted, succeeded, failed,
+          errorSummary: failed > 0 ? 'One or more country charts unavailable' : null });
+        console.log(JSON.stringify({
+          status, scope: 'Sampled Top Free Education charts, not all worldwide Education apps',
+          storefronts: countries, sourceQueries: { attempted, succeeded, failed },
+          observedChartEntries: apple.rows + android.rows, newCatalogApps,
+          sources: { apple, android }
+        }, null, 2));
+        if (failed === attempted) process.exitCode = 1;
+      } catch (error) {
+        repo.finishAuditLog(auditId, { status: 'FAILED', errorSummary: error.message });
+        throw error;
+      }
       break;
     }
 
@@ -199,6 +239,8 @@ Usage: node bin/cli.js <command>
 
 Commands:
   import-catalog --file PATH [--max N]   Import AppGoblin TSV / TSV.XZ catalog
+  catalog-sync [--max-age-days 30]       Check GitHub file update; auto-import only fresh new versions
+  discover [--storefronts us,vn,gb]     Add chart-discovered apps (Top-K only)
   coverage                          Report local catalog coverage and freshness
   seed --curated                    Optional small curated demo catalog (not market coverage)
   sweep [--storefronts us,gb,jp]      Discover via charts (Top-K only)
@@ -213,4 +255,7 @@ Commands:
   }
 }
 
-main().catch(console.error);
+main().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
