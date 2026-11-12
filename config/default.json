@@ -1,0 +1,31 @@
+{
+  "system": {
+    "name": "TrendLab",
+    "version": "1.0.0",
+    "dbPath": "./data/trendlab.sqlite"
+  },
+  "catalog": {
+    "educationGenreIdIos": 6017,
+    "educationCategoryAndroid": "EDUCATION",
+    "surveyedStorefronts": ["us", "vn", "gb", "de", "in", "jp"],
+    "appgoblinDataUrl": "https://raw.githubusercontent.com/ddxv/appgoblin-data/main/data/live_store_apps.tsv.xz"
+  },
+  "collector": {
+    "android": {
+      "requestDelayMs": 1500,
+      "randomJitterMs": 500,
+      "maxConsecutiveErrors": 5
+    },
+    "ios": {
+      "lookupBatchSize": 100,
+      "requestDelayMs": 1200,
+      "randomJitterMs": 300,
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 TrendLab/1.0"
+    }
+  },
+  "analytics": {
+    "windows": ["7d", "14d", "30d", "90d"],
+    "priorShrinkage": 500.0,
+    "completenessThreshold": 0.8
+  }
+}

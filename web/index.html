@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrendLab — Global Education App Discovery</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo">
+        <span class="logo-badge">TRENDLAB</span>
+        <h1>Global Education App Discovery</h1>
+      </div>
+      <div class="subtitle">Karpathy-Style Interactive Canvas Treemap & Momentum Engine</div>
+    </div>
+    <div class="header-right">
+      <div class="meta-pill" id="metaTotalApps">Apps: Loading...</div>
+      <div class="meta-pill" id="metaLastUpdated">Updated: Loading...</div>
+      <div class="view-toggles">
+        <button class="view-btn active" id="btnViewTreemap" title="Full Treemap View">🗺️ Treemap</button>
+        <button class="view-btn" id="btnViewSplit" title="Split Treemap + Table">◫ Split</button>
+        <button class="view-btn" id="btnViewTable" title="Leaderboard Table Only">☰ Table</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Controls Bar -->
+  <section class="controls-bar">
+    <div class="control-group">
+      <label>Window:</label>
+      <div class="button-toggle" id="windowToggle">
+        <button class="toggle-btn" data-window="7d">7D</button>
+        <button class="toggle-btn" data-window="14d">14D</button>
+        <button class="toggle-btn active" data-window="30d">30D</button>
+        <button class="toggle-btn" data-window="90d">90D</button>
+        <button class="toggle-btn" data-window="all">All</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label>Platform:</label>
+      <div class="button-toggle" id="platformToggle">
+        <button class="toggle-btn active" data-platform="all">All</button>
+        <button class="toggle-btn" data-platform="android">Android</button>
+        <button class="toggle-btn" data-platform="ios">iOS</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label>Color Signal:</label>
+      <select id="colorSelect" class="styled-select">
+        <option value="model_c_breakout" selected>Mode A: Emerging Breakouts (High Momentum)</option>
+        <option value="model_b_compounder">Mode B: Sustained Growth (Compounders)</option>
+        <option value="model_a_growth">Model A: Absolute Volume Delta</option>
+        <option value="rating_velocity">Rating Velocity (Daily New Ratings)</option>
+      </select>
+    </div>
+
+    <div class="control-group search-group">
+      <input type="text" id="searchInput" placeholder="Filter apps, developers, keywords..." class="styled-input">
+    </div>
+
+    <div class="control-group info-group">
+      <span class="info-label">📐 Area: <strong>Log₁₀(Volume)</strong> (Not market share)</span>
+    </div>
+  </section>
+
+  <!-- Main Viewport (Fluid 100% Window-Resizing Canvas) -->
+  <main class="main-viewport view-treemap" id="mainViewport">
+    <!-- Treemap Canvas Pane -->
+    <div class="canvas-pane" id="canvasPane">
+      <canvas id="treemapCanvas"></canvas>
+      <div id="canvasTooltip" class="canvas-tooltip hidden"></div>
+      <div class="canvas-legend">
+        <span>Low / Baseline</span>
+        <span class="legend-gradient"></span>
+        <span>High Breakout Momentum</span>
+      </div>
+    </div>
+
+    <!-- Leaderboard Table Pane -->
+    <div class="table-pane" id="tablePane">
+      <div class="table-header">
+        <h3 id="tableTitle">Rankings</h3>
+        <span class="table-count" id="tableCount">0 apps</span>
+      </div>
+      <div class="table-scroll">
+        <table class="leaderboard-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>App Name</th>
+              <th>Platform</th>
+              <th>Score</th>
+              <th>Volume</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Deep-Dive Inspection Drawer -->
+  <div id="drawerOverlay" class="drawer-overlay hidden">
+    <div class="drawer-content">
+      <div class="drawer-header">
+        <div>
+          <span class="badge" id="modalPlatform">PLATFORM</span>
+          <h2 id="modalTitle">App Title</h2>
+          <div class="modal-dev" id="modalDeveloper">Developer Name</div>
+        </div>
+        <button class="drawer-close" id="drawerClose">&times;</button>
+      </div>
+
+      <div class="drawer-body">
+        <div class="metric-cards-row">
+          <div class="stat-card">
+            <div class="stat-label">Observed Counter / Volume</div>
+            <div class="stat-value" id="modalVolume">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Trend Score</div>
+            <div class="stat-value" id="modalScore">0.0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Rating Velocity</div>
+            <div class="stat-value" id="modalVelocity">0.0/day</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Completeness</div>
+            <div class="stat-value" id="modalCompleteness">100%</div>
+          </div>
+        </div>
+
+        <div class="section-box">
+          <h3>Snapshot History Points</h3>
+          <div id="historyTableContainer" class="history-table-container"></div>
+        </div>
+
+        <div class="section-box provenance-box">
+          <h3>Data Provenance & Audit Verification</h3>
+          <div class="provenance-grid">
+            <div><strong>Source:</strong> <span id="modalSource">-</span></div>
+            <div><strong>Method:</strong> <span id="modalMethod">-</span></div>
+            <div><strong>Payload SHA-256:</strong> <code id="modalSha">-</code></div>
+            <div><strong>Last Observed:</strong> <span id="modalLastObserved">-</span></div>
+            <div><strong>Integrity Check:</strong> <span class="badge badge-success">Verified Raw Snapshot</span></div>
+          </div>
+        </div>
+
+        <div class="drawer-actions">
+          <a id="modalStoreLink" href="#" target="_blank" rel="noopener noreferrer" class="btn-store">View on Official Store ↗</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/treemap.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
