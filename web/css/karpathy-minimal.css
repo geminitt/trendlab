@@ -1,0 +1,95 @@
+/* TrendLab research surface — deliberately minimal, inspired by karpathy.ai/jobs.
+   Keeps research data prominent; system/collector diagnostics are not on this page. */
+:root{
+  color-scheme:dark;
+  --bg:#0b0b11;--surface:#0d0d14;--surface2:#15161e;
+  --line:#2a2d37;--muted:#9b9aaa;--text:#f0f0f4;
+  --bright:#fff;--accent:#33c75c;--cool:#97a9d6;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+.shell{max-width:1680px;min-height:100vh}
+.topbar{height:48px;padding:0 30px;background:#0a0a10;border-bottom:1px solid #22232c}
+.brand-title{font-size:16px;letter-spacing:.15px}
+.brand-title span{color:#80cf91}
+.brand-symbol{height:27px;width:27px;padding:4px;border:1px solid #354b3e}
+.brand-symbol span{background:#82d395}
+.brand-subtitle{display:none}
+.top-right{font-size:11px;color:#9a9baa}
+.status-dot{background:#31cd6b;box-shadow:0 0 0 3px #192b21}
+.workspace{width:100%;max-width:1460px;margin:0 auto;padding:24px 25px 32px;display:block;min-height:0;flex:1}
+.research-intro{margin-bottom:20px}
+.research-intro h1{font-size:clamp(25px,2.15vw,33px);line-height:1.3;letter-spacing:-.8px;font-weight:760;margin:0 0 12px}
+.research-intro p{font-size:13px;color:#a1a0b4;line-height:1.75;max-width:1380px;margin:0}
+.research-intro p strong{font-weight:650;color:#e6e5ed}
+.prototype-label{font-size:10px;letter-spacing:1px;vertical-align:middle;display:inline-flex;margin-left:12px;padding:4px 7px;border-radius:3px;background:#1e2825;color:#92cfae;font-weight:650}
+.toolbar{display:flex;align-items:center;gap:14px 20px;border:0;border-radius:0;background:none;padding:0;flex-wrap:wrap}
+.toolbar-cluster{display:flex;align-items:center;gap:8px}
+.control-label{color:#8c8e9e;letter-spacing:1px;font-size:10px;font-weight:740}
+.segmented{display:flex;gap:4px;background:transparent;border:0;padding:0}
+.segmented button{padding:7px 12px;border:1px solid #353641;color:#a8aaba;background:#13141b;font-size:11px;font-weight:540;border-radius:3px}
+.segmented button.active{background:#2b2d36;color:#f0f1f6;border-color:#505260;font-weight:700}
+.segmented button:hover:not(.active){background:#22242c}
+select{border-radius:3px;font-size:11px;border:1px solid #353641;padding:8px 25px 8px 10px;max-width:220px;background:#13141b;color:#e1e2e9}
+.search-field{margin-left:auto;background:#13141b;border:1px solid #353641;border-radius:3px;padding:0 9px;min-width:175px}
+.search-field input{max-width:270px;font-size:11px;height:34px;color:#f2f2f5}
+.search-field span{color:#b7b5c2}
+.research-stats{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:18px;margin:21px 0 17px;padding:0 0 16px;border-bottom:1px solid #252732}
+.research-stat{display:flex;flex-direction:column;gap:0;min-width:0}
+.research-stat>span{font-size:10px;color:#9998a6;letter-spacing:.75px;font-weight:740}
+.research-stat strong{font-weight:760;font-size:clamp(24px,2.4vw,34px);letter-spacing:-1.15px;line-height:1.2;margin:4px 0 1px;font-variant-numeric:tabular-nums}
+.research-stat:nth-child(2) strong{color:#7ccc8d}
+.research-stat:nth-child(3) strong{color:#d0c5f5}
+.research-stat:nth-child(4) strong{color:#83c9a9}
+.research-stat small{font-size:11px;color:#878798;line-height:1.45}
+.map-overview{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:9px}
+.map-overview-heading{font-size:11px;color:#b3b4c0;font-weight:600;white-space:nowrap}
+.workspace-separator{color:#5d6170;margin:0 5px}
+.interpretation{display:flex;align-items:center;justify-content:flex-end;gap:7px;padding:0;color:#9394a5;font-size:10px;text-align:right;line-height:1.5}
+.info-mark{height:15px;width:15px;border:1px solid #505563;color:#b0afc1;font-size:10px;flex:none}
+.map-pane{border:0;background:transparent;border-radius:0;min-height:0;overflow:visible;display:flex;flex-direction:column}
+.map-header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 1px 9px;background:transparent;border:0;font-size:11px}
+.map-header span:first-child{font-weight:750;letter-spacing:.75px;color:#e4e5eb}
+.map-header span:last-child{font-size:10px;color:#9a99aa}
+.canvas-frame{position:relative;width:100%;height:clamp(510px,71vh,1010px);min-height:510px;flex:none;background:#101015;overflow:hidden;margin:0}
+.canvas-frame canvas{display:block;width:100%;height:100%;cursor:crosshair}
+.map-footer{padding:11px 1px 2px;border:0;gap:8px 16px;display:flex;align-items:center;justify-content:space-between;color:#9093a2;font-size:10px;min-height:31px;flex-wrap:wrap}
+.legend{white-space:normal}
+.footer{border-top:1px solid #20212b;color:#747788;padding:14px 25px}
+.canvas-tooltip{background:#181a24f5;border:1px solid #555b68;color:#f4f4f7;box-shadow:0 14px 38px #000b}
+.tip-value{color:#a8e2ad}
+.readiness-surface{position:absolute;inset:0;z-index:3;display:grid;place-items:center;overflow:auto;padding:20px;background:#101116}
+.minimal-readiness{width:min(100%,520px);padding:28px 30px;text-align:center;border:1px solid #2c3440;background:#151821}
+.minimal-readiness h3{font-size:27px;font-weight:740;letter-spacing:-.65px;margin:8px 0 10px}
+.minimal-readiness p{font-size:13px;line-height:1.7;color:#a9adbb;margin:0 auto 17px}
+.minimal-readiness strong{color:#edf2f2}
+.minimal-readiness button{background:#254d37;border:1px solid #38895b;border-radius:3px;color:#e6ffeb;padding:9px 14px;font-size:12px;font-weight:650}
+.minimal-readiness button:hover{background:#306643}
+.drawer{background:#131620;color:#eee}
+.drawer-header,.drawer-body{border-color:#343743}
+.history-chart{background:#111723;border-color:#323743}
+@media(max-width:1100px){
+  .workspace{padding:21px 18px}
+  .search-field{margin-left:0;flex:1}
+  .map-overview{flex-direction:column;align-items:flex-start;gap:7px}
+  .interpretation{text-align:left;justify-content:flex-start}
+  .canvas-frame{height:clamp(490px,67vh,890px)}
+}
+@media(max-width:690px){
+  .topbar{padding:0 14px}
+  .workspace{padding:18px 12px}
+  .research-intro h1{font-size:24px}
+  .prototype-label{font-size:8px;padding:3px 5px;margin-left:5px}
+  .research-intro p{font-size:12px}
+  .toolbar{gap:10px}
+  .toolbar-cluster{flex-wrap:wrap;gap:7px}
+  .segmented button{padding:7px 9px}
+  .search-field{flex-basis:100%}
+  .research-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 12px}
+  .research-stat strong{font-size:27px}
+  .map-header{font-size:10px}
+  .map-header span:last-child{text-align:right}
+  .canvas-frame{height:490px;min-height:490px}
+  .map-footer{font-size:9px}
+  .footer{padding:12px;font-size:9px}
+}
