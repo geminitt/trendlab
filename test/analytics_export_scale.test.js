@@ -105,7 +105,7 @@ test('export includes all observed apps beyond 1000 without exporting unobserved
     assert.equal(payload.apps.length, 1002);
     assert.equal(payload.meta.activity.daily.length, 30);
     assert.ok(payload.meta.activity.daily.every(row =>
-      /^\\d{4}-\\d{2}-\\d{2}$/.test(row.date) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(row.date) &&
       Number.isInteger(row.observationRows) && row.observationRows >= 0));
     const noCounter = payload.apps.find(a => a.id === 'id-0');
     assert.equal(noCounter.rawVolume, null);
