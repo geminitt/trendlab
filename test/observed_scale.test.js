@@ -70,3 +70,14 @@ test('duplicates without a compatible source metric do not hide observed source 
   otherStore.lastObservedAt = '2026-11-13T00:00:00Z';
   assert.deepEqual(getScaleCandidates([measured, otherStore], 'ios').map(a => a.id), ['counted']);
 });
+
+test('US star color remains aligned with US rating counter for non-US catalog row', () => {
+  const item = app('jp-catalog', 'ios', 6000, 'observed_rating_count');
+  item.storefront = 'jp';
+  item.history = [
+    { storefront: 'jp', score: 1.0 },
+    { storefront: 'us', score: 4.7 }
+  ];
+  assert.equal(getLatestStarRating(item), 4.7);
+  assert.equal(scaleColor(item), '#1bbb75');
+});
