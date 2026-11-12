@@ -57,17 +57,17 @@ test('sustained model score and rating velocity retain numerical ratios', () => 
 test('zero, negative and missing metrics are distinctly counted and never drawn', () => {
   const items = [
     app('positive', 'android', 100, 'observed_install_counter', {
-      scores: { '30d': { model_a_growth: { score: 4 } } }
+      metrics: { '30d': { deltaInstalls: 4 } }
     }),
     app('zero', 'android', 200, 'observed_install_counter', {
-      scores: { '30d': { model_a_growth: { score: 0 } } }
+      metrics: { '30d': { deltaInstalls: 0 } }
     }),
     app('negative', 'android', 300, 'observed_install_counter', {
-      scores: { '30d': { model_a_growth: { score: -3 } } }
+      metrics: { '30d': { deltaInstalls: -3 } }
     }),
     app('missing', 'android', 400, 'observed_install_counter'),
     app('invalid', 'android', 500, 'observed_install_counter', {
-      scores: { '30d': { model_a_growth: { score: 'NaN' } } }
+      metrics: { '30d': { deltaInstalls: 'NaN' } }
     })
   ];
   const r = getAreaCandidates(items, 'android', 'model_a_growth', '30d');
@@ -107,4 +107,20 @@ test('native store ID deduplication prefers a real score over a missing latest r
   assert.equal(r.items.length, 1);
   assert.equal(r.items[0].app.id, 'old-row');
   assert.equal(r.total, 1);
+});
+
+test('Observed delta tile size uses the raw counter increase, NOT log-transformed Model A score', () => {
+  const one = app('one', 'android', 1000000, 'observed_install_counter', {
+    metrics: { '30d': { deltaInstalls: 80 } },
+    scores: { '30d': { model_a_growth: { score: 1.9 } } }
+  });
+  const two = app('two', 'android', 1000000000, 'observed_install_counter', {
+    metrics: { '30d': { deltaInstalls: 20 } },
+    scores: { '30d': { model_a_growth: { score: 1.3 } } }
+  });
+  const selection = getAreaCandidates([one,two], 'android', 'model_a_growth','30d');
+  assert.deepEqual(selection.items.map(x => x.weight), [80,20]);
+  const rects = SquarifiedTreemap.squarify(selection.items, 0, 0, 100, 100);
+  almost(geometryArea(rects[0]) / geometryArea(rects[1]), 4);
+  assert.equal(metricValue(one, 'model_a_growth', '30d'), 80);
 });
