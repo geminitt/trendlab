@@ -15,7 +15,21 @@ class SiteDataBuilder {
       fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    const apps = this.repo.getPlatformApps({ limit: 1000 });
+    // Export the complete observed subset, not the first 1,000 catalog entries.
+    // Unobserved catalog entries do not belong in a time-series visualization.
+    const apps = this.repo.db.prepare(`
+      SELECT p.*
+      FROM (
+        SELECT platform_app_id, MAX(observed_at) AS last_observed_at
+        FROM observed_metrics GROUP BY platform_app_id
+      ) seen
+      JOIN platform_applications p ON p.id = seen.platform_app_id
+      WHERE p.is_active = 1
+      ORDER BY seen.last_observed_at DESC, p.id
+    `).all();
+    const catalogSize = this.repo.db.prepare(
+      'SELECT COUNT(*) AS count FROM platform_applications WHERE is_active = 1'
+    ).get().count;
     const compiledApps = [];
 
     for (const app of apps) {
@@ -71,15 +85,26 @@ class SiteDataBuilder {
       // 5. Compute Treemap Area Dimension (Observed Volume Scale)
       // As specified: Log10 of installs/ratings, NEVER assuming market share!
       const latestPoint = historyRows.length > 0 ? historyRows[historyRows.length - 1] : null;
-      let rawVolume = 100;
-      if (latestPoint) {
-        if (app.platform === 'android' && latestPoint.observed_install_counter) {
-          rawVolume = latestPoint.observed_install_counter;
-        } else if (latestPoint.observed_rating_count) {
-          rawVolume = latestPoint.observed_rating_count;
+      // A missing counter must not be presented as a fabricated "100".
+      // Android scale is install counter if present, otherwise rating count,
+      // but the source metric is explicitly recorded.
+      let rawVolume = null;
+      let volumeMetric = null;
+      for (let i = historyRows.length - 1; i >= 0; i--) {
+        const row = historyRows[i];
+        if (app.platform === 'android' && Number.isFinite(row.observed_install_counter)) {
+          rawVolume = row.observed_install_counter;
+          volumeMetric = 'observed_install_counter';
+          break;
+        }
+        if (Number.isFinite(row.observed_rating_count)) {
+          rawVolume = row.observed_rating_count;
+          volumeMetric = 'observed_rating_count';
+          break;
         }
       }
-      const volumeScale = Math.max(1.0, Math.log10(rawVolume + 1));
+      const volumeScale = rawVolume === null ? 1.0
+        : Math.max(1.0, Math.log10(rawVolume + 1));
 
       compiledApps.push({
         id: app.id,
@@ -92,6 +117,7 @@ class SiteDataBuilder {
         price: app.price,
         volumeScale: Math.round(volumeScale * 100) / 100,
         rawVolume,
+        volumeMetric,
         history,
         metrics: metricsMap,
         scores: scoresMap,
@@ -109,6 +135,8 @@ class SiteDataBuilder {
         system: 'TrendLab Global Education Discovery',
         generatedAt: new Date().toISOString(),
         totalApps: compiledApps.length,
+        catalogApps: catalogSize,
+        exportScope: 'Observed applications only; catalog entries without snapshots excluded.',
         windows: ['7d', '14d', '30d', '90d', 'all'],
         models: [
           { id: 'model_c_breakout', name: 'Emerging Breakouts (Mode A)' },
@@ -121,7 +149,14 @@ class SiteDataBuilder {
       apps: compiledApps
     };
 
-    fs.writeFileSync(targetPath, JSON.stringify(payload, null, 2), 'utf8');
+    // Atomic replacement ensures the web server never reads a half-written JSON.
+    const tmpPath = targetPath + '.tmp-' + process.pid;
+    try {
+      fs.writeFileSync(tmpPath, JSON.stringify(payload), 'utf8');
+      fs.renameSync(tmpPath, targetPath);
+    } finally {
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+    }
     console.log(`[SiteDataBuilder] Successfully generated ${targetPath} (${compiledApps.length} apps, ${(fs.statSync(targetPath).size / 1024).toFixed(1)} KB).`);
     return targetPath;
   }
