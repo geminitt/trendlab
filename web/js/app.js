@@ -78,13 +78,9 @@ class TrendLabApp {
   isScaleMode() { return this.metric === 'observed_scale'; }
 
   getScore(app) {
+    // Color, inspector and area must all refer to the same selected metric.
     if (this.isScaleMode()) return null;
-    if (this.metric === 'rating_velocity') {
-      const m = app.metrics && app.metrics[this.window];
-      return m && Number.isFinite(m.ratingVelocity) ? m.ratingVelocity : null;
-    }
-    const value = app.scores && app.scores[this.window] && app.scores[this.window][this.metric];
-    return value && Number.isFinite(value.score) ? value.score : null;
+    return TrendLabArea.metricValue(app, this.metric, this.window);
   }
 
   filtered() {
@@ -169,7 +165,11 @@ class TrendLabApp {
         this.platform === 'android' ?
           'AREA = linear observed Android maxInstalls (unverified semantics). COLOR = user stars.' :
           'AREA = linear US App Store rating count. COLOR = US user stars.') :
-      'AREA = linear selected signal (no compression). COLOR = signal strength relative within platform; provisional and not a verified forecast.';
+      this.metric === 'model_a_growth' ?
+        'AREA = linear change in the observed source counter. COLOR = relative change within platform; not verified daily downloads.' :
+      this.metric === 'rating_velocity' ?
+        'AREA = linear observed ratings/day (iOS only at present). COLOR = relative velocity; unavailable Android values are omitted.' :
+        'AREA = linear provisional model score (no extra compression). COLOR = relative signal strength within platform; not a validated forecast.';
 
     this.layoutAndDraw(apps);
   }
@@ -260,7 +260,9 @@ class TrendLabApp {
         '    COLOR · signal strength relative within platform';
     document.getElementById('mapFooterNote').textContent = isScale ?
       'Android maxInstalls is unverified · iOS US ratings are not downloads · zero excluded' :
-      'Zero, negative and missing values have no positive area · provisional signal, not market share';
+      this.metric === 'model_a_growth' ?
+        'Zero, negative and missing values omitted · observed counter increases are not exact downloads' :
+        'Zero, negative and missing values omitted · provisional signal, not market share';
     this.drawCanvas();
   }
 
@@ -408,7 +410,9 @@ class TrendLabApp {
     notice.classList.toggle('unknown', !hasEvidence);
     notice.textContent = this.isScaleMode() ?
       'Observed scale: tile area is linear in the source counter within this platform. Android maxInstalls semantics remain unverified; iOS US ratings are not downloads. These source counters do not establish market share or download growth.' :
-      hasEvidence ? 'Tile area is proportional to the positive value of the selected provisional signal; zero and negative values are not drawn. This is not verified download growth or a validated forecast.' :
+      hasEvidence ? (this.metric === 'model_a_growth' ?
+        'Tile area is linear in the observed increase of the platform-specific source counter, not exact daily downloads. Zero/negative values are not drawn.' :
+        'Tile area is linear in the positive value of the selected provisional signal; zero and negative values are not drawn. This is not a validated forecast.') :
       'Insufficient history for this selected signal and time window. No trend conclusion is available; N/A is not a zero score.';
     this.setText('modalVolume', this.formatCount(app.rawVolume));
     this.setText('modalVolumeType', app.volumeMetric ?
@@ -419,7 +423,7 @@ class TrendLabApp {
       score === null ? 'N/A' : score.toFixed(2));
     this.setText('modalScoreType', this.isScaleMode() ?
       'Observed user star rating · not growth' :
-      this.metric.replaceAll('_', ' ') + ' · ' + this.window);
+      TrendLabArea.METRIC_LABELS[this.metric] + ' · ' + this.window);
     this.setText('modalVelocity', metric && Number.isFinite(metric.ratingVelocity) ?
       metric.ratingVelocity.toFixed(2) + '/d' : 'N/A');
     this.setText('modalCompleteness', metric && Number.isFinite(metric.completeness) ?
