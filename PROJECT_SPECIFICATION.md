@@ -468,7 +468,7 @@ Giao diện nghiên cứu lấy cảm hứng trực tiếp từ kiến trúc c�
 graph TD
     subgraph UI_LAYOUT ["KIẾN TRÚC GIAO DIỆN PHÒNG THÍ NGHIỆM (DASHBOARD)"]
         TOP["Thanh điều khiển trung tâm (Filters: Time Window, Platform, Category Facet, Confidence Bar)"]
-        MID_L["Treemap Đa Tầng (Interactive Squarified Treemap)<br/>Diện tích: Quy mô quan sát (Log Scale)<br/>Màu sắc: Tốc độ tăng trưởng / Động lượng"]
+        MID_L["Treemap Tương Tác (Squarified)<br/>Diện tích: tỷ lệ tuyến tính theo metric<br/>Màu sắc: rating hoặc điểm tín hiệu"]
         MID_R["Bảng Xếp Hạng Động (Dynamic Leaderboard)<br/>Top Trending, Emerging Gems, Movers & Shakers"]
         BOT["Ngăn Truy nguyên Dữ liệu (Provenance & Inspection Drawer)<br/>Biểu đồ chuỗi thời gian, Snapshot gốc, Cảnh báo chất lượng"]
     end
@@ -481,7 +481,12 @@ graph TD
 ### 12.1. Quy tắc Ngữ nghĩa của Treemap (Kích thước & Màu sắc)
 Tránh hoàn toàn các hiểu lầm thị giác bằng định nghĩa minh bạch:
 - **Diện tích hình chữ nhật (Tile Area):**
-  - Thể hiện **Quy mô quan sát được (Observed Volume Scale)**, cụ thể là $\log_{10}(\text{observed\_install\_counter} + 1)$ đối với Android hoặc $\log_{10}(\text{total\_ratings} + 1)$ đối với iOS.
+  - **Quy tắc bắt buộc (cập nhật 2026-11): tuyến tính theo giá trị DƯƠNG của phép đo đang chọn**, không dùng logarit, căn bậc hai hoặc ngưỡng diện tích tối thiểu giả để làm ô đồng đều.
+  - *Observed Scale*: Android = bộ đếm công khai `maxInstalls` chưa xác minh ngữ nghĩa; iOS = số rating US storefront. Không gộp hai đơn vị khác nhau trong cùng treemap.
+  - *Observed Delta*: độ tăng bộ đếm nguồn thực tế của khoảng thời gian, **không dùng log10(delta) của điểm Model A**.
+  - *Breakout / Sustained Growth*: điểm mô hình thử nghiệm; chỉ ánh xạ tuyến tính chính điểm đó, không suy diễn là lượt tải hoặc thị phần.
+  - *Rating Velocity*: số rating/ngày khi có đủ chuỗi dữ liệu.
+  - Giá trị âm, 0 và dữ liệu thiếu **phải được phân biệt** và không được cấp diện tích dương giả.
   - `[CHỐT]` Tuyệt đối **KHÔNG** tuyên bố diện tích là "Thị phần" (Market Share), vì không có cơ sở dữ liệu về tổng lượt cài toàn cầu.
 - **Màu sắc hình chữ nhật (Tile Color):**
   - Cho phép người dùng chuyển đổi linh hoạt qua các chế độ màu:
