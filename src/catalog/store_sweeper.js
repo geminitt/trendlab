@@ -51,69 +51,42 @@ class StoreSweeper {
   }
 
   // Sweep Google Play Top Free Education + Search Facets
-  async sweepGooglePlayEducationCharts() {
+  async sweepGooglePlayEducationCharts(countries = config.catalog.surveyedStorefronts || ['us']) {
     console.log(`[StoreSweeper] Sweeping Google Play Education Apps...`);
     let totalDiscovered = 0;
 
-    // 1. Top Free Education
-    try {
-      console.log('  Querying Google Play Top Free Education...');
-      const apps = await gplay.list({
-        category: gplay.category.EDUCATION,
-        collection: gplay.collection.TOP_FREE,
-        num: 100,
-        country: 'us'
-      });
-
-      console.log(`    -> Received ${apps.length} apps from Google Play Top Free.`);
-      for (const item of apps) {
-        this.repo.upsertPlatformApp({
-          platform: 'android',
-          nativeStoreId: item.appId,
-          title: item.title,
-          developerName: item.developer,
-          developerId: item.developerId,
-          primaryGenre: 'EDUCATION',
-          storefront: 'global',
-          price: item.price || 0.0
-        });
-        totalDiscovered++;
-      }
-    } catch (err) {
-      console.warn(`  Warning on Google Play Top Free:`, err.message);
-    }
-
-    // 2. Keyword searches to discover niche / emerging education tools
-    const searchTerms = ['math solver', 'flashcards', 'language learning', 'stem kids', 'coding python', 'sat prep', 'study timer'];
-    for (const term of searchTerms) {
+    // Top chart discovery is capped and country-specific; it is never market coverage.
+    for (const country of countries) {
       try {
-        console.log(`  Searching Google Play for "${term}"...`);
-        const results = await gplay.search({
-          term,
-          num: 25,
-          country: 'us'
+        const apps = await gplay.list({
+          category: gplay.category.EDUCATION,
+          collection: gplay.collection.TOP_FREE,
+          num: 100,
+          country
         });
-
-        for (const item of results) {
-          if (item.genreId === 'EDUCATION' || item.genre === 'Education' || !item.genreId) {
-            this.repo.upsertPlatformApp({
-              platform: 'android',
-              nativeStoreId: item.appId,
-              title: item.title,
-              developerName: item.developer,
-              developerId: item.developerId,
-              primaryGenre: 'EDUCATION',
-              storefront: 'global',
-              price: item.price || 0.0
-            });
-            totalDiscovered++;
-          }
+        console.log(`  Google Play Top Free Education [${country}]: ${apps.length} rows`);
+        for (const item of apps) {
+          if (!item.appId || !item.title) continue;
+          this.repo.upsertPlatformApp({
+            platform: 'android',
+            nativeStoreId: item.appId,
+            title: item.title,
+            developerName: item.developer,
+            developerId: item.developerId,
+            primaryGenre: 'EDUCATION',
+            storefront: 'global',
+            price: item.price || 0.0
+          });
+          totalDiscovered++;
         }
-        await new Promise(r => setTimeout(r, 800));
       } catch (err) {
-        console.warn(`  Warning searching term "${term}":`, err.message);
+        console.warn(`  Google Play chart failed [${country}]:`, err.message);
       }
+      await new Promise(r => setTimeout(r, 1200));
     }
+
+    // Keyword-based discovery is intentionally removed: a few English terms
+    // cannot represent the worldwide official Education category.
 
     console.log(`[StoreSweeper] Google Play sweep completed: ${totalDiscovered} apps registered.`);
     return totalDiscovered;
