@@ -5,7 +5,9 @@
  * Each platform retains its own source unit; Android public maxInstalls values are
  * never added to or directly sized against iOS storefront rating counts.
  */
-const LIMIT_PER_PLATFORM = 24;
+// No UI-only Top-N cutoff: include every distinct eligible, observed app.
+// Optional explicit limit remains available for future user-selected views.
+const LIMIT_PER_PLATFORM = Infinity;
 const UNIT = {
   android: 'observed_install_counter',
   ios: 'observed_rating_count'
