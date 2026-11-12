@@ -152,9 +152,17 @@ async function main() {
       const webDir = path.resolve(__dirname, '../web');
 
       const server = http.createServer((req, res) => {
-        let reqPath = req.url.split('?')[0];
-        if (reqPath === '/') reqPath = '/index.html';
-        const filePath = path.join(webDir, reqPath);
+        let filePath;
+        try {
+          const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+          const requested = pathname === '/' ? '/index.html' : pathname;
+          filePath = path.resolve(webDir, '.' + requested);
+          if (!filePath.startsWith(webDir + path.sep)) {
+            res.writeHead(403); res.end('403 Forbidden'); return;
+          }
+        } catch {
+          res.writeHead(400); res.end('400 Bad Request'); return;
+        }
 
         const mimeTypes = {
           '.html': 'text/html',
