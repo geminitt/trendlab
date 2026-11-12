@@ -84,7 +84,7 @@ Tài liệu đặc tả chi tiết:
 
 ---
 
-## 2. Cấu trúc dự án chuẩn Production
+## 2. Cấu trúc mã nguồn bản prototype
 
 Dự án được tổ chức theo chuẩn kiến trúc module chuyên nghiệp, không chia theo folder phase:
 
@@ -102,7 +102,8 @@ trendlab/
 │   │   ├── schema.sql          # DDL chuẩn hóa (Canonical, Snapshots, Metrics, Scores)
 │   │   └── repository.js       # Data Access Layer & Audit logging
 │   ├── catalog/                # Tầng danh mục & Khám phá
-│   │   ├── seed_importer.js    # Khởi tạo hạt giống & luồng tải AppGoblin TSV
+│   │   ├── seed_importer.js    # Curated demo seed (tùy chọn)
+│   │   ├── bulk_importer.js    # Nhập dữ liệu Education từ TSV/XZ local
 │   │   └── store_sweeper.js    # Quét bảng xếp hạng Apple RSS v2 & Google Play
 │   ├── collector/              # Tầng thu thập & kiểm soát nhịp
 │   │   ├── android_collector.js# Thu thập maxInstalls, ratings, score có pacing & jitter
@@ -143,13 +144,15 @@ npm install
 
 | Lệnh | Ý nghĩa chức năng |
 | :--- | :--- |
-| `node bin/cli.js seed` | Khởi tạo danh mục hạt giống giáo dục toàn cầu. |
-| `node bin/cli.js sweep` | Quét bảng xếp hạng Top Free Education để khám phá app mới. |
+| `node bin/cli.js seed --curated` | Tùy chọn demo bằng danh sách thủ công, không tính market coverage. |
+| `node bin/cli.js import-catalog --file PATH` | Import danh mục Education AppGoblin từ TSV/XZ tải về máy. |
+| `node bin/cli.js coverage` | Kiểm tra số app trong catalog, số app có snapshot và tiến độ. |
+| `node bin/cli.js sweep` | Bổ sung app từ Top Charts theo từng nước (không phải toàn thị trường). |
 | `node bin/cli.js collect` | Chạy worker thu thập dữ liệu Android và iOS. |
 | `node bin/cli.js analyze` | Tính toán chỉ số dẫn xuất và chấm điểm xu hướng các mô hình. |
-| `node bin/cli.js backtest` | Chạy kiểm nghiệm mô hình và phân tích độ trùng lặp Top K. |
+| `node bin/cli.js backtest` | Chỉ chẩn đoán độ trùng lặp Top-K; chưa đo hiệu năng dự báo. |
 | `node bin/cli.js export` | Biên dịch dữ liệu ra file tĩnh `web/data/data.json`. |
-| **`node bin/cli.js pipeline`** | **Chạy toàn bộ quy trình từ thu thập đến xuất bản dashboard.** |
+| **`node bin/cli.js pipeline`** | **Chạy một chu kỳ thu thập các app đến hạn trong catalog rồi phân tích/xuất bản.** |
 | **`node bin/cli.js serve`** | **Khởi chạy dashboard server tại `http://localhost:8080/`.** |
 
 ---
