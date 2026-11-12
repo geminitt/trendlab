@@ -150,7 +150,7 @@ class TrendLabApp {
     document.getElementById('tableCount').textContent = this.formatCount(apps.length);
     document.getElementById('mapSubheading').textContent = this.formatCount(apps.length - scored) + ' unscored · muted gray';
     document.getElementById('areaExplanation').textContent = this.isScaleMode() ?
-      'OBSERVED SCALE — Snapshot-only exploration (not growth). Android install thresholds and iOS storefront rating counts occupy separate treemaps. Tile area uses log(count + 10)²; color denotes observed 1–5 star rating.' :
+      'OBSERVED SCALE — Snapshot-only exploration (not growth). Android public maxInstalls counter (unverified semantics) and iOS storefront rating counts occupy separate treemaps. Tile area uses log(count + 10)²; color denotes observed 1–5 star rating.' :
       scored < 8 ?
       'TREND — Not enough usable history for a meaningful treemap. Collection readiness is shown below; select Observed scale to explore available apps now.' :
       'TREND — Provisional model signal, not a verified download forecast. Android and iOS cannot share a single source-unit scale.';
@@ -314,7 +314,7 @@ class TrendLabApp {
         ctx.textAlign = 'left';
         ctx.font = '700 11px system-ui, sans-serif';
         const descriptor = group.platform === 'android' ?
-          'ANDROID  ·  INSTALL THRESHOLDS' : 'iOS  ·  US RATING COUNTS';
+          'ANDROID  ·  MAXINSTALLS COUNTER' : 'iOS  ·  US RATING COUNTS';
         ctx.fillText(this.truncate(descriptor, Math.max(0, group.width - 105)), group.x + 10, 17);
         ctx.font = '500 10px system-ui, sans-serif';
         ctx.textAlign = 'right';
@@ -358,7 +358,7 @@ class TrendLabApp {
         const score = this.getScore(r.app);
         const subtitle = this.isScaleMode() ?
           this.compact(r.app.rawVolume) +
-            (r.app.platform === 'android' ? ' installs ≥' : ' US ratings') :
+            (r.app.platform === 'android' ? ' maxInstalls' : ' US ratings') :
           score === null ? 'Insufficient data' :
           r.app.platform.toUpperCase() + ' · Signal ' + score.toFixed(1);
         ctx.fillText(this.truncate(subtitle, rw - 13), x + 6, y + 8 + size + 4);
@@ -388,7 +388,7 @@ class TrendLabApp {
         info.className = 'tip-value';
         const score = this.getScore(app);
         info.textContent = this.isScaleMode() ?
-          (app.platform === 'android' ? 'Observed install threshold: ' : 'US storefront rating count: ') +
+          (app.platform === 'android' ? 'Public maxInstalls counter: ' : 'US storefront rating count: ') +
           this.formatCount(app.rawVolume) :
           score === null ? 'Insufficient trend data' : 'Provisional signal: ' + score.toFixed(2);
         const stars = TrendLabScale.getLatestStarRating(app);
@@ -443,7 +443,9 @@ class TrendLabApp {
         const index = document.createElement('span');
         index.className = 'rank-number';
         index.textContent = this.isScaleMode() ?
-          String(i + 1).padStart(2, '0') :
+          (app.volumeMetric ===
+            (platform === 'android' ? 'observed_install_counter' : 'observed_rating_count') ?
+            String(i + 1).padStart(2, '0') : '—') :
           this.getScore(app) === null ? '—' : String(i + 1).padStart(2, '0');
         const middle = document.createElement('span');
         middle.className = 'rank-middle';
@@ -500,7 +502,7 @@ class TrendLabApp {
     const notice = document.getElementById('modalNotice');
     notice.classList.toggle('unknown', !hasEvidence);
     notice.textContent = this.isScaleMode() ?
-      'Observed scale snapshot only. Android values are install thresholds; iOS values are storefront rating counts. Tile area uses a visual transform. None of these values proves download growth.' :
+      'Observed scale snapshot only. Android values are install thresholds; iOS values are storefront rating counts. Tile area uses a visual transform, not source-unit market share. None of these values proves download growth.' :
       hasEvidence ? 'Provisional signal calculated from observed changes. This is not a verified download forecast or a validated growth ranking.' :
       'Insufficient history for this selected signal and time window. No trend conclusion is available; N/A is not a zero score.';
     this.setText('modalVolume', this.formatCount(app.rawVolume));
