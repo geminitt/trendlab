@@ -220,6 +220,11 @@ class TrendLabApp {
       this.formatCount(excluded.zero) + ' zero · ' +
       this.formatCount(excluded.negative) + ' negative · ' +
       this.formatCount(excluded.missing) + ' missing';
+    const empty = document.getElementById('emptyMessage');
+    empty.classList.toggle('hidden', readiness || positiveCount > 0);
+    if (!readiness && positiveCount === 0) {
+      empty.textContent = 'No positive observed source counter for this filter. Zero and missing values are not assigned artificial tile area.';
+    }
     if (readiness) return;
 
     const w = this.canvasPane.clientWidth;
