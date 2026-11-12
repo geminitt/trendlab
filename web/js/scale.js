@@ -60,8 +60,10 @@ function getScaleCandidates(apps, platform, limit = LIMIT_PER_PLATFORM) {
 }
 
 function tileWeight(app) {
-  // Display transform, not proportional market share.
-  return Math.pow(Math.log10(Math.max(0, app.rawVolume) + 10), 2);
+  // Historical helper for snapshot area: exact observed-source magnitude.
+  // No display compression; callers must omit zero/negative/missing values.
+  return typeof app?.rawVolume === 'number' && Number.isFinite(app.rawVolume) &&
+    app.rawVolume > 0 ? app.rawVolume : 0;
 }
 
 function scaleColor(app) {
