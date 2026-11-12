@@ -68,6 +68,87 @@ class Repository {
     return this.db.prepare('SELECT * FROM platform_applications WHERE id = ?').get(id);
   }
 
+  // --- FAIR, RESUMABLE COLLECTION SCHEDULING ---
+  // Without a row in collection_state the app has never been collected.
+  // Due rows precede retried/previously collected rows, with deterministic ties.
+  getDuePlatformApps({ platform, storefront = 'global', limit = 100, now = new Date().toISOString() }) {
+    if (!['android', 'ios'].includes(platform)) throw new Error('Unknown platform');
+    if (!Number.isSafeInteger(limit) || limit < 1) throw new RangeError('limit must be positive');
+    return this.db.prepare(`
+      SELECT p.* FROM platform_applications p
+      LEFT JOIN collection_state c
+        ON c.platform_app_id = p.id AND c.storefront = ?
+      WHERE p.platform = ? AND p.is_active = 1
+        AND (c.next_due_at IS NULL OR c.next_due_at <= ?)
+      ORDER BY
+        CASE WHEN c.last_attempted_at IS NULL THEN 0 ELSE 1 END,
+        COALESCE(c.next_due_at, '') ASC,
+        COALESCE(c.last_attempted_at, '') ASC,
+        p.id ASC
+      LIMIT ?
+    `).all(storefront, platform, now, limit);
+  }
+
+  recordCollectionAttempt({
+    platformAppId, storefront = 'global', succeeded, error = null,
+    observedAt = new Date().toISOString(), refreshHours = 24,
+    retryHours = 1, maxRetryHours = 24
+  }) {
+    const previous = this.db.prepare(`
+      SELECT consecutive_failures FROM collection_state
+      WHERE platform_app_id = ? AND storefront = ?
+    `).get(platformAppId, storefront);
+    const failures = succeeded ? 0 : (previous?.consecutive_failures || 0) + 1;
+    const backoff = succeeded ? refreshHours
+      : Math.min(maxRetryHours, retryHours * Math.pow(2, Math.min(failures - 1, 20)));
+    const nextDue = new Date(Date.parse(observedAt) + backoff * 3600000).toISOString();
+    this.db.prepare(`
+      INSERT INTO collection_state
+        (platform_app_id, storefront, last_attempted_at, last_success_at,
+         next_due_at, consecutive_failures, last_error)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(platform_app_id, storefront) DO UPDATE SET
+        last_attempted_at = excluded.last_attempted_at,
+        last_success_at = CASE WHEN excluded.consecutive_failures = 0
+          THEN excluded.last_success_at ELSE collection_state.last_success_at END,
+        next_due_at = excluded.next_due_at,
+        consecutive_failures = excluded.consecutive_failures,
+        last_error = excluded.last_error
+    `).run(platformAppId, storefront, observedAt, succeeded ? observedAt : null,
+      nextDue, failures, succeeded ? null : String(error || 'UNKNOWN').slice(0, 1000));
+  }
+
+  getCoverageReport({ now = new Date().toISOString() } = {}) {
+    const summary = this.db.prepare(`
+      SELECT p.platform, COUNT(*) AS catalog_apps,
+        SUM(CASE WHEN o.platform_app_id IS NOT NULL THEN 1 ELSE 0 END) AS apps_with_observations,
+        SUM(CASE WHEN c.last_success_at >= ? THEN 1 ELSE 0 END) AS recently_collected,
+        SUM(CASE WHEN c.next_due_at <= ? OR c.next_due_at IS NULL THEN 1 ELSE 0 END) AS due
+      FROM platform_applications p
+      LEFT JOIN (
+        SELECT DISTINCT platform_app_id FROM observed_metrics
+      ) o ON o.platform_app_id = p.id
+      LEFT JOIN (
+        SELECT platform_app_id, MAX(last_success_at) AS last_success_at,
+          MIN(next_due_at) AS next_due_at
+        FROM collection_state GROUP BY platform_app_id
+      ) c ON c.platform_app_id = p.id
+      WHERE p.is_active = 1
+      GROUP BY p.platform ORDER BY p.platform
+    `).all(new Date(Date.parse(now) - 24 * 3600000).toISOString(), now);
+    const audit = this.db.prepare(`
+      SELECT job_type, started_at, completed_at, status,
+        items_attempted, items_succeeded, items_failed, error_summary
+      FROM collection_audit_logs ORDER BY started_at DESC LIMIT 10
+    `).all();
+    return {
+      generatedAt: now,
+      coverageMeaning: 'Counts only apps present in local catalog, not all global Education apps.',
+      byPlatform: summary,
+      recentJobs: audit
+    };
+  }
+
   // --- RAW SNAPSHOTS ---
   saveRawSnapshot({
     platformAppId,
