@@ -132,8 +132,8 @@ class SiteDataBuilder {
         };
       }
 
-      // 5. Compute Treemap Area Dimension (Observed Volume Scale)
-      // As specified: Log10 of installs/ratings, NEVER assuming market share!
+      // 5. Export original source counters for LINEAR area mapping in the UI.
+      // volumeScale below is a legacy export field; NOT used as tile weight.
       const latestPoint = historyRows.length > 0 ? historyRows[historyRows.length - 1] : null;
       // A missing counter must not be presented as a fabricated "100".
       // Android scale is install counter if present, otherwise rating count,
@@ -205,7 +205,7 @@ class SiteDataBuilder {
           { id: 'model_b_compounder', name: 'Sustained Growth (Mode B)' },
           { id: 'model_a_growth', name: 'Absolute Volume (Model A)' }
         ],
-        areaDimensionDefinition: 'Observed scale: separate Android and iOS treemaps, top 64 distinct native IDs per platform. Tile weight = log10(source count + 10)^2; NOT proportional market share.',
+        areaDimensionDefinition: 'Tile area linear in positive selected value: observed platform source count, raw counter increase, provisional model score, or ratings/day. Zero, negative and missing have no positive area. Android and iOS units are separate; NOT market share.',
         colorDimensionDefinition: 'Relative percentile per platform for available signals; gray = insufficient evidence. Scores are provisional.'
       },
       apps: compiledApps
