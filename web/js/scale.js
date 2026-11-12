@@ -68,11 +68,13 @@ function scaleColor(app) {
   const score = getLatestStarRating(app);
   if (score === null) return '#3b4a56';
   // A fixed anchored 1–5 star scale. No automatic min/max stretching.
-  if (score < 3) return '#9a468c';
-  if (score < 3.5) return '#ae5098';
-  if (score < 4) return '#787e46';
-  if (score < 4.5) return '#229562';
-  return '#1bbb75';
+  // Low-to-high ratings use a Karpathy-style sequential red→gold→green scale.
+  // These bands represent user sentiment, never app growth.
+  if (score < 3) return '#8c251c';
+  if (score < 3.5) return '#9e4d20';
+  if (score < 4) return '#807319';
+  if (score < 4.5) return '#437d30';
+  return '#176431';
 }
 
 if (typeof window !== 'undefined') {
