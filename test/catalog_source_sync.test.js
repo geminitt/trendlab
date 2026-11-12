@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
+const { execFileSync } = require('node:child_process');
 const Repository = require('../src/storage/repository');
 const { CatalogSourceMonitor, SOURCE_ID, RAW_URL } = require('../src/catalog/source_monitor');
 
@@ -24,10 +25,11 @@ const TSV = [
   'google\tcom.example.game\tGame\tgame_educational',
   ''
 ].join('\n');
+const COMPRESSED = execFileSync('xz', ['-zc'], { input: TSV });
 
 function createMonitor({ repo, temp }, { age = '2026-11-12T00:00:00Z', version = 'abc-v1',
                                   failures = false, onDownload = () => {} } = {}) {
-  const bytes = Buffer.byteLength(TSV);
+  const bytes = COMPRESSED.length;
   return new CatalogSourceMonitor(repo, {
     dataDir: temp,
     metadata: async () => ({ version, size: bytes, modifiedAt: age, url: RAW_URL }),
@@ -36,7 +38,7 @@ function createMonitor({ repo, temp }, { age = '2026-11-12T00:00:00Z', version =
       assert.equal(url, RAW_URL);
       if (failures) throw new Error('Network unavailable');
       fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, TSV);
+      fs.writeFileSync(target, COMPRESSED);
       return { file: target, bytes, sha256: 'fixture-sha256' };
     }
   });
