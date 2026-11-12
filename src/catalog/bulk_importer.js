@@ -51,9 +51,13 @@ function openTsv(inputPath) {
   // generally have xz; on other systems install xz or decompress to .tsv first.
   const child = spawn('xz', ['-dc', filePath], { stdio: ['ignore', 'pipe', 'pipe'] });
   let stderr = '';
+  const completed = new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', resolve);
+  });
   child.stderr.setEncoding('utf8');
   child.stderr.on('data', chunk => { stderr += chunk; });
-  return { input: child.stdout, process: child, getError: () => stderr };
+  return { input: child.stdout, process: child, completed, getError: () => stderr };
 }
 
 class BulkCatalogImporter {
@@ -124,13 +128,9 @@ class BulkCatalogImporter {
     }
     if (streamError) throw streamError;
     if (source.process && !earlyStop) {
-      // Wait for decompressor exit; truncated/corrupt .xz is a failed import.
-      const exitCode = source.process.exitCode !== null
-        ? source.process.exitCode
-        : await new Promise((resolve, reject) => {
-          source.process.once('error', reject);
-          source.process.once('close', resolve);
-        });
+      // Promise is registered before streaming so a fast xz process cannot
+      // close before the listener is attached.
+      const exitCode = await source.completed;
       if (exitCode !== 0) throw new Error('xz failed: ' + (source.getError() || 'exit ' + exitCode));
     }
     if (!columns) throw new Error('Empty TSV dataset');
