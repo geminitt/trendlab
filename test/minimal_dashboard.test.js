@@ -25,7 +25,8 @@ test('research home is treemap-first without operations charts or mandatory dire
 
 test('no arbitrary top-24 cap in the default treemap', () => {
   assert.match(app, /this\.platform = 'android'/);
-  assert.match(app, /getScaleCandidates\(apps, platform\)/);
+  assert.match(app, /TrendLabArea\.getAreaCandidates\(apps, platform, this\.metric, this\.window\)/);
+  assert.match(html, /js\/area\.js/);
   assert.match(scale, /LIMIT_PER_PLATFORM = Infinity/);
   assert.doesNotMatch(app, /top 24|top ' \+/);
 });
