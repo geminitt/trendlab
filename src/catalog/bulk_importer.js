@@ -83,6 +83,17 @@ class BulkCatalogImporter {
     let columns = null;
     let earlyStop = false;
     let streamError = null;
+    let transactionOpen = false;
+    let pendingRows = 0;
+    const database = this.repo.db;
+    const transactionsEnabled = database && typeof database.exec === 'function';
+    const commit = () => {
+      if (transactionOpen) {
+        database.exec('COMMIT');
+        transactionOpen = false;
+        pendingRows = 0;
+      }
+    };
     source.input.on('error', error => { streamError = error; });
     if (source.process) source.process.on('error', error => { streamError = error; });
 
@@ -114,27 +125,36 @@ class BulkCatalogImporter {
           continue;
         }
         seen.add(key);
+        if (transactionsEnabled && !transactionOpen) {
+          database.exec('BEGIN');
+          transactionOpen = true;
+        }
         this.repo.upsertPlatformApp(app);
         summary.imported++;
+        if (++pendingRows >= 500) commit();
         if (summary.imported >= maxApps) {
           earlyStop = true;
           break;
         }
       }
+      if (streamError) throw streamError;
+      if (source.process && !earlyStop) {
+      // Promise is registered before streaming so a fast xz process cannot
+      // close before the listener is attached.
+      const exitCode = await source.completed;
+        if (exitCode !== 0) throw new Error('xz failed: ' + (source.getError() || 'exit ' + exitCode));
+      }
+      if (!columns) throw new Error('Empty TSV dataset');
+      commit();
+      return summary;
+    } catch (error) {
+      if (transactionOpen) database.exec('ROLLBACK');
+      throw error;
     } finally {
       lines.close();
       if (earlyStop && source.process) source.process.kill();
       if (earlyStop && !source.process) source.input.destroy();
     }
-    if (streamError) throw streamError;
-    if (source.process && !earlyStop) {
-      // Promise is registered before streaming so a fast xz process cannot
-      // close before the listener is attached.
-      const exitCode = await source.completed;
-      if (exitCode !== 0) throw new Error('xz failed: ' + (source.getError() || 'exit ' + exitCode));
-    }
-    if (!columns) throw new Error('Empty TSV dataset');
-    return summary;
   }
 }
 
