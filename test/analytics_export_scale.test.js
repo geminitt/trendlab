@@ -103,6 +103,10 @@ test('export includes all observed apps beyond 1000 without exporting unobserved
     assert.equal(payload.meta.catalogApps, 1042);
     assert.equal(payload.meta.totalApps, 1002);
     assert.equal(payload.apps.length, 1002);
+    assert.equal(payload.meta.activity.daily.length, 30);
+    assert.ok(payload.meta.activity.daily.every(row =>
+      /^\d{4}-\d{2}-\d{2}$/.test(row.date) &&
+      Number.isInteger(row.observationRows) && row.observationRows >= 0));
     const noCounter = payload.apps.find(a => a.id === 'id-0');
     assert.equal(noCounter.rawVolume, null);
     assert.equal(noCounter.volumeMetric, null);
@@ -110,6 +114,34 @@ test('export includes all observed apps beyond 1000 without exporting unobserved
     assert.equal(zeroCounter.rawVolume, 1);
     assert.equal(zeroCounter.volumeMetric, 'observed_install_counter');
     assert.equal(fs.readdirSync(temp).length, 1);
+  } finally {
+    db.close();
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('iOS display scale selects US ratings, not a larger value from another storefront', () => {
+  const { db, repo } = setup();
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'trendlab-export-us-'));
+  try {
+    const id = repo.upsertPlatformApp({
+      platform: 'ios', nativeStoreId: '1234567890', storefront: 'global',
+      title: 'Education Example', primaryGenre: 'Education'
+    });
+    const t = new Date().toISOString();
+    repo.recordObservedMetrics({
+      platformAppId: id, observedAt: new Date(Date.parse(t) - 2000).toISOString(),
+      storefront: 'us', ratingCount: 1000
+    });
+    repo.recordObservedMetrics({
+      platformAppId: id, observedAt: t,
+      storefront: 'jp', ratingCount: 9000
+    });
+    const output = path.join(temp, 'site.json');
+    new SiteDataBuilder(repo).build(output);
+    const app = JSON.parse(fs.readFileSync(output, 'utf8')).apps[0];
+    assert.equal(app.rawVolume, 1000);
+    assert.equal(app.volumeMetric, 'observed_rating_count');
   } finally {
     db.close();
     fs.rmSync(temp, { recursive: true, force: true });

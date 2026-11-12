@@ -35,7 +35,9 @@ class TrendLabApp {
       this.metric = e.target.value; this.render();
     });
     document.getElementById('searchInput').addEventListener('input', e => {
-      this.search = e.target.value.toLocaleLowerCase().trim(); this.render();
+      this.search = e.target.value.toLocaleLowerCase().trim();
+      if (this.search) document.getElementById('directoryPanel').open = true;
+      this.render();
     });
     this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
     this.canvas.addEventListener('mouseleave', () => { this.hovered = null; this.tooltip.classList.add('hidden'); this.drawCanvas(); });
@@ -130,6 +132,8 @@ class TrendLabApp {
     if (!this.dataset) return;
     this.legendCache.clear();
     const apps = this.filtered();
+    const uniqueVisible = ['android', 'ios'].reduce((sum, platform) =>
+      sum + TrendLabScale.dedupePlatformApps(apps, platform).length, 0);
     const catalog = this.dataset.meta?.catalogApps || 0;
     const observed = this.dataset.meta?.totalApps || this.dataset.apps.length;
     const scored = apps.filter(app => this.getScore(app) !== null).length;
@@ -144,10 +148,10 @@ class TrendLabApp {
     document.getElementById('kpiFresh').textContent = this.formatCount(fresh);
     document.getElementById('metaLastUpdated').textContent = this.dataset.meta?.generatedAt ?
       'Exported ' + new Date(this.dataset.meta.generatedAt).toLocaleString() : 'No export date';
-    document.getElementById('visibleCount').textContent = this.formatCount(apps.length) + ' apps visible';
+    document.getElementById('visibleCount').textContent = this.formatCount(uniqueVisible) + ' distinct apps visible';
     document.getElementById('qualityCount').textContent = this.isScaleMode() ?
       'snapshot scale · not trend' : this.formatCount(scored) + ' with signal';
-    document.getElementById('tableCount').textContent = this.formatCount(apps.length);
+    document.getElementById('tableCount').textContent = this.formatCount(uniqueVisible);
     document.getElementById('mapSubheading').textContent = this.formatCount(apps.length - scored) + ' unscored · muted gray';
     document.getElementById('areaExplanation').textContent = this.isScaleMode() ?
       'OBSERVED SCALE — Snapshot-only exploration (not growth). Android public maxInstalls counter (unverified semantics) and iOS storefront rating counts occupy separate treemaps. Tile area uses log(count + 10)²; color denotes observed 1–5 star rating.' :
@@ -156,6 +160,7 @@ class TrendLabApp {
       'TREND — Provisional model signal, not a verified download forecast. Android and iOS cannot share a single source-unit scale.';
     this.layoutAndDraw(apps);
     this.renderDirectory(apps);
+    TrendLabInsights.render(this.dataset.meta, this.dataset.apps);
   }
 
   // Show a truthful readiness dashboard while the selected window cannot
@@ -228,7 +233,7 @@ class TrendLabApp {
     const isScale = this.isScaleMode();
     const mapHeader = document.getElementById('mapHeading');
     const subtitle = document.getElementById('mapSubheading');
-    mapHeader.textContent = isScale ? 'OBSERVED SCALE / NOT DOWNLOAD GROWTH' :
+    mapHeader.textContent = isScale ? 'TOP OBSERVED APPS' :
       readiness ? 'COLLECTION READINESS' : 'TREND MAP / ' + this.window.toUpperCase();
     if (readiness) {
       subtitle.textContent = this.formatCount(apps.length - scoredApps.length) + ' apps without trend evidence';
@@ -258,21 +263,19 @@ class TrendLabApp {
         const platform = platforms[index];
         const x = gap + index * (panelWidth + gap);
         const selections = TrendLabScale.getScaleCandidates(apps, platform);
-        const totalEligible = apps.filter(app =>
-          app.platform === platform && app.volumeMetric ===
-          (platform === 'android' ? 'observed_install_counter' : 'observed_rating_count') &&
-          Number.isFinite(app.rawVolume)).length;
+        const totalEligible = TrendLabScale.getScaleCandidates(apps, platform, Infinity).length;
         this.mapGroups.push({ platform, x, width: panelWidth, count: selections.length, totalEligible });
         if (!selections.length) continue;
         const items = selections.map(app => ({ app, weight: TrendLabScale.tileWeight(app) }));
         const rects = SquarifiedTreemap.squarify(items, x, top, panelWidth, Math.max(1, h - top - 4));
         this.rects.push(...rects);
       }
-      subtitle.textContent = this.formatCount(this.rects.length) + ' measured apps shown · up to 64 per platform';
+      subtitle.textContent = this.formatCount(this.rects.length) + ' measured apps · top ' +
+        TrendLabScale.LIMIT_PER_PLATFORM + ' per platform';
       document.getElementById('mapLegend').textContent =
         'AREA · log² of observed source count     COLOR · 1–5★ user rating';
       document.getElementById('mapFooterNote').textContent =
-        'Android = install threshold · iOS = storefront ratings · not comparable across panels';
+        'Android = unverified maxInstalls · iOS = US rating count · do not compare areas across panels';
     } else {
       const items = scoredApps.map(app => ({
         app, weight: this.platform === 'all' ? 1 : Math.max(1, Number(app.volumeScale) || 1)
@@ -303,11 +306,11 @@ class TrendLabApp {
     const w = this.canvas.width / (this.dpr || 1);
     const h = this.canvas.height / (this.dpr || 1);
     ctx.setTransform(this.dpr || 1, 0, 0, this.dpr || 1, 0, 0);
-    ctx.fillStyle = '#0a1118';
+    ctx.fillStyle = '#121416';
     ctx.fillRect(0, 0, w, h);
     if (this.isScaleMode() && Array.isArray(this.mapGroups)) {
       for (const group of this.mapGroups) {
-        ctx.fillStyle = '#172630';
+        ctx.fillStyle = '#202523';
         ctx.fillRect(group.x, 3, group.width, 28);
         ctx.fillStyle = '#ecf7f5';
         ctx.textBaseline = 'middle';
@@ -329,7 +332,7 @@ class TrendLabApp {
       }
     }
     for (const r of this.rects) {
-      const gap = 2;
+      const gap = 3;
       const x = r.rx + gap / 2, y = r.ry + gap / 2;
       const rw = r.rw - gap, rh = r.rh - gap;
       if (rw <= 0 || rh <= 0) continue;
@@ -341,27 +344,29 @@ class TrendLabApp {
         ctx.lineWidth = 2;
         ctx.strokeRect(x + 1, y + 1, rw - 2, rh - 2);
       }
-      if (rw < 50 || rh < 28) continue;
+      if (rw < 52 || rh < 28) continue;
       ctx.save();
       ctx.beginPath();
       ctx.rect(x + 4, y + 3, rw - 8, rh - 6);
       ctx.clip();
-      const size = Math.min(13, Math.max(10, Math.min(rw / 10, rh / 3)));
+      const size = Math.min(14, Math.max(10, Math.min(rw / 10, rh / 3)));
       ctx.font = '700 ' + size + 'px system-ui, sans-serif';
       ctx.fillStyle = '#f3f7f9';
       ctx.textBaseline = 'top';
       const label = this.truncate(r.app.title, rw - 13);
       ctx.fillText(label, x + 6, y + 6);
-      if (rh > 44 && rw > 72) {
-        ctx.font = '500 ' + Math.max(9, size - 2) + 'px system-ui, sans-serif';
-        ctx.fillStyle = '#e2e8e8';
+      if (rh > 44 && rw > 65) {
+        // Bottom-right numeric labels match the supplied reference.
+        // Units remain explicit in each header, tooltip and inspector.
+        ctx.font = '600 ' + Math.max(10, size - 1) + 'px system-ui, sans-serif';
+        ctx.fillStyle = '#f7faf8';
         const score = this.getScore(r.app);
-        const subtitle = this.isScaleMode() ?
-          this.compact(r.app.rawVolume) +
-            (r.app.platform === 'android' ? ' maxInstalls' : ' US ratings') :
-          score === null ? 'Insufficient data' :
-          r.app.platform.toUpperCase() + ' · Signal ' + score.toFixed(1);
-        ctx.fillText(this.truncate(subtitle, rw - 13), x + 6, y + 8 + size + 4);
+        const value = this.isScaleMode() ? this.compact(r.app.rawVolume) :
+          score === null ? 'N/A' : score.toFixed(1);
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(this.truncate(value, rw - 13), x + rw - 7, y + rh - 6);
+        ctx.textAlign = 'left';
       }
       ctx.restore();
     }
@@ -415,7 +420,7 @@ class TrendLabApp {
     this.side.replaceChildren();
     const groups = this.platform === 'all' ? ['android', 'ios'] : [this.platform];
     for (const platform of groups) {
-      const subset = apps.filter(a => a.platform === platform);
+      const subset = TrendLabScale.dedupePlatformApps(apps, platform);
       subset.sort((a, b) => {
         if (this.isScaleMode()) {
           const eligible = item => item.volumeMetric ===
