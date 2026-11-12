@@ -168,10 +168,41 @@ class Repository {
         items_attempted, items_succeeded, items_failed, error_summary
       FROM collection_audit_logs ORDER BY started_at DESC LIMIT 10
     `).all();
+    const last24h = new Date(Date.parse(now) - 24 * 3600000).toISOString();
+    const byStorefront = this.db.prepare(`
+      SELECT p.platform, c.storefront, COUNT(*) AS tracked_app_storefront_pairs,
+        SUM(CASE WHEN c.last_success_at >= ? THEN 1 ELSE 0 END) AS fresh_success_24h,
+        SUM(CASE WHEN c.next_due_at <= ? THEN 1 ELSE 0 END) AS overdue,
+        SUM(CASE WHEN c.consecutive_failures > 0 THEN 1 ELSE 0 END) AS previous_attempt_failed
+      FROM collection_state c
+      JOIN platform_applications p ON p.id = c.platform_app_id
+      WHERE p.is_active = 1
+      GROUP BY p.platform, c.storefront
+      ORDER BY p.platform, c.storefront
+    `).all(last24h, now);
+    const catalogSources = this.db.prepare(`
+      SELECT source_id, source_url, last_checked_at, source_version,
+        last_source_updated_at, last_imported_at, last_status,
+        last_imported_version, new_apps, last_error
+      FROM catalog_source_sync ORDER BY source_id
+    `).all();
+    const requestThroughput24h = this.db.prepare(`
+      SELECT COALESCE(SUM(items_attempted), 0) AS attempted,
+        COALESCE(SUM(items_succeeded), 0) AS succeeded,
+        COALESCE(SUM(items_failed), 0) AS failed,
+        COUNT(*) AS cycles
+      FROM collection_audit_logs
+      WHERE job_type = 'FULL_COLLECTION_CYCLE' AND started_at >= ?
+    `).get(last24h);
     return {
       generatedAt: now,
       coverageMeaning: 'Counts only apps present in local catalog, not all global Education apps.',
       byPlatform: summary,
+      byStorefront,
+      freshnessMeaning: 'fresh_success_24h counts app+storefront pairs tracked by collection_state; not worldwide category coverage.',
+      requestThroughput24h,
+      throughputMeaning: 'Counts attempts, not distinct applications or verified new downloads.',
+      catalogSources,
       recentJobs: audit
     };
   }
