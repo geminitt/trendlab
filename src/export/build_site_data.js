@@ -30,6 +30,53 @@ class SiteDataBuilder {
     const catalogSize = this.repo.db.prepare(
       'SELECT COUNT(*) AS count FROM platform_applications WHERE is_active = 1'
     ).get().count;
+    // Sparse, auditable aggregates for the dashboard. An observation row is
+    // not a download, and an audit success is not a unique app.
+    const now = new Date();
+    const days = Array.from({ length: 30 }, (_, index) =>
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (29 - index)))
+        .toISOString().slice(0, 10));
+    const start = days[0] + 'T00:00:00.000Z';
+    const dailyRows = this.repo.db.prepare(`
+      SELECT substr(observed_at, 1, 10) AS day, COUNT(*) AS observationRows,
+             COUNT(DISTINCT platform_app_id) AS observedApps
+      FROM observed_metrics WHERE observed_at >= ?
+      GROUP BY substr(observed_at, 1, 10)
+    `).all(start);
+    const firstSeenRows = this.repo.db.prepare(`
+      SELECT substr(first_observed, 1, 10) AS day, COUNT(*) AS newlyObserved
+      FROM (
+        SELECT platform_app_id, MIN(observed_at) AS first_observed
+        FROM observed_metrics GROUP BY platform_app_id
+      )
+      WHERE first_observed >= ?
+      GROUP BY substr(first_observed, 1, 10)
+    `).all(start);
+    const auditRows = this.repo.db.prepare(`
+      SELECT substr(completed_at, 1, 10) AS day,
+             SUM(items_attempted) AS attempts,
+             SUM(items_succeeded) AS succeeded,
+             SUM(items_failed) AS failed
+      FROM collection_audit_logs
+      WHERE completed_at >= ? AND completed_at IS NOT NULL
+      GROUP BY substr(completed_at, 1, 10)
+    `).all(start);
+    const toMap = rows => new Map(rows.map(r => [r.day, r]));
+    const observedMap = toMap(dailyRows);
+    const firstMap = toMap(firstSeenRows);
+    const auditMap = toMap(auditRows);
+    const activity = {
+      source: 'observed_metrics and collection_audit_logs (SQLite); UTC calendar dates',
+      daily: days.map(date => ({
+        date,
+        observationRows: observedMap.get(date)?.observationRows || 0,
+        observedApps: observedMap.get(date)?.observedApps || 0,
+        newlyObserved: firstMap.get(date)?.newlyObserved || 0,
+        attempts: auditMap.get(date)?.attempts || 0,
+        succeeded: auditMap.get(date)?.succeeded || 0,
+        failed: auditMap.get(date)?.failed || 0
+      }))
+    };
     const compiledApps = [];
 
     for (const app of apps) {
@@ -100,7 +147,10 @@ class SiteDataBuilder {
           volumeMetric = 'observed_install_counter';
           break;
         }
-        if (Number.isFinite(row.observed_rating_count)) {
+        // The visible iOS treemap is explicitly US rating counts; never
+        // silently choose a larger figure from a different storefront.
+        if (app.platform === 'ios' && row.storefront === 'us' &&
+            Number.isFinite(row.observed_rating_count)) {
           rawVolume = row.observed_rating_count;
           volumeMetric = 'observed_rating_count';
           break;
@@ -147,6 +197,7 @@ class SiteDataBuilder {
           android: compiledApps.filter(app => app.platform === 'android').length,
           ios: compiledApps.filter(app => app.platform === 'ios').length
         },
+        activity,
         exportScope: 'Observed applications only; catalog entries without snapshots excluded.',
         windows: ['7d', '14d', '30d', '90d', 'all'],
         models: [
@@ -154,7 +205,7 @@ class SiteDataBuilder {
           { id: 'model_b_compounder', name: 'Sustained Growth (Mode B)' },
           { id: 'model_a_growth', name: 'Absolute Volume (Model A)' }
         ],
-        areaDimensionDefinition: 'Combined Android+iOS: equal cells (different source units). Platform-specific: log10 observed counter; NOT market share.',
+        areaDimensionDefinition: 'Observed scale: separate Android and iOS treemaps, top 64 distinct native IDs per platform. Tile weight = log10(source count + 10)^2; NOT proportional market share.',
         colorDimensionDefinition: 'Relative percentile per platform for available signals; gray = insufficient evidence. Scores are provisional.'
       },
       apps: compiledApps
