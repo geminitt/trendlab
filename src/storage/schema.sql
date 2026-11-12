@@ -140,3 +140,11 @@ CREATE TABLE IF NOT EXISTS collection_state (
     FOREIGN KEY (platform_app_id) REFERENCES platform_applications(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_collection_due ON collection_state(next_due_at);
+
+-- Online index upgrades for large, pre-existing local catalogs.
+CREATE INDEX IF NOT EXISTS idx_platform_due_catalog
+  ON platform_applications(platform, is_active, first_seen_at DESC, id);
+CREATE INDEX IF NOT EXISTS idx_collection_store_due
+  ON collection_state(storefront, next_due_at, last_attempted_at);
+CREATE INDEX IF NOT EXISTS idx_observed_app_store_time
+  ON observed_metrics(platform_app_id, storefront, observed_at);
