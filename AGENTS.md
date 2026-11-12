@@ -7,7 +7,7 @@
 - Collection limits are **per cycle**, not lifetime caps. Measure attempts, success, unique apps observed, freshness, backlog, throughput, and realistic revisit latency. A 24-hour refresh is a target to prove, never a default guarantee.
 - Preserve immutable raw observations and provenance. No estimated downloads, fabricated values, missing-as-zero, unverified maxInstalls semantics, or summing Android counters with iOS storefront ratings.
 - Trend scores are provisional until adequate time series and validation. Expose readiness, uncertainty, and windows; do not market the prototype as validated predictive analytics.
-- A high-quality, usable interactive treemap is essential, but UI polish must not conceal missing catalog coverage or weak data.
+- A high-quality, usable interactive treemap is essential, but UI polish must not conceal missing catalog coverage or weak data. Tile area MUST represent the positive value of the selected metric linearly, without log/sqrt/minimum-floor compression. Raw counter for scale, raw observed change for delta, model output for Breakout/Sustained, ratings/day for velocity. Zero, negative and missing must be distinguished. Never combine Android and iOS source units.
 - Server runs unattended via systemd. Avoid duplicate collectors, destructive DB resets, and changes that disable backups. Preserve operational safety.
 - Before calling a work item complete, report which acceptance criterion passed, which is only partially met, and which remains unsolved.
 - User communication and deployment instructions: **Vietnamese**.
