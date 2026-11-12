@@ -45,7 +45,8 @@
         <div class="toolbar-cluster"><span class="control-label">WINDOW</span><div class="segmented" id="windowToggle">
           <button type="button" data-window="7d">7D</button><button type="button" data-window="14d">14D</button><button type="button" class="active" data-window="30d">30D</button><button type="button" data-window="90d">90D</button><button type="button" data-window="all">ALL</button>
         </div></div>
-        <label class="toolbar-cluster metric-cluster"><span class="control-label">COLOR BY</span><select id="colorSelect">
+        <label class="toolbar-cluster metric-cluster"><span class="control-label">LAYER</span><select id="colorSelect">
+          <option value="observed_scale" selected>Observed scale · snapshots</option>
           <option value="model_c_breakout">Breakout signal</option>
           <option value="model_b_compounder">Sustained signal</option>
           <option value="model_a_growth">Observed delta</option>
@@ -94,11 +95,11 @@
             <div class="canvas-tooltip hidden" id="canvasTooltip" role="status"></div>
             <div class="empty-message hidden" id="emptyMessage"></div>
           </div>
-          <div class="map-footer" id="mapFooter"><div class="legend"><span class="legend-square no-data"></span>Insufficient data<span class="legend-divider"></span><span class="legend-gradient"></span>Lower → Higher signal</div><span>Colors relative within platform · Not download forecasts</span></div>
+          <div class="map-footer" id="mapFooter"><div class="legend" id="mapLegend">Observed scale: area = transformed source count · color = star rating</div><span id="mapFooterNote">Not global market share or download growth</span></div>
         </div>
         <aside class="ranking-pane" aria-label="App rankings">
           <div class="ranking-title"><div><div class="eyebrow">EXPLORE</div><h3>App directory</h3></div><span id="tableCount" class="count-pill">—</span></div>
-          <div class="ranking-explanation" id="rankingExplanation">Apps with measured trend evidence appear first. Unscored apps are listed separately.</div>
+          <div class="ranking-explanation" id="rankingExplanation">App directory · the selected layer determines the sort order.</div>
           <div class="ranking-scroll"><div id="leaderboardBody" class="ranking-list"></div></div>
         </aside>
       </div>
@@ -126,6 +127,7 @@
     </section>
   </div>
   <script src="js/treemap.js"></script>
+  <script src="js/scale.js"></script>
   <script src="js/readiness.js"></script>
   <script src="js/app.js"></script>
 </body>
