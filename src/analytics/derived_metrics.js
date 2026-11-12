@@ -127,20 +127,43 @@ class DerivedMetricsCalculator {
     return results;
   }
 
-  calculateAll() {
-    let offset = 0;
-    let count = 0;
-    const batchSize = 500;
-    while (true) {
-      const apps = this.repo.getPlatformApps({ limit: batchSize, offset });
-      if (!apps.length) break;
-      for (const app of apps) {
-        this.calculateForApp(app);
-        count++;
+  calculateAll(now = new Date()) {
+    // Scan observed_metrics instead of querying all catalog apps individually.
+    // On a catalog of 330k apps with <1k observed, this removes hundreds of
+    // thousands of pointless per-app SELECTs.
+    const db = this.repo.db;
+    const eligibleApps = db.prepare(`
+      SELECT p.*
+      FROM (
+        SELECT platform_app_id
+        FROM observed_metrics
+        WHERE observed_install_counter IS NOT NULL
+           OR observed_rating_count IS NOT NULL
+        GROUP BY platform_app_id
+        HAVING COUNT(*) >= 3
+      ) candidates
+      JOIN platform_applications p ON p.id = candidates.platform_app_id
+      WHERE p.is_active = 1
+      ORDER BY p.id
+    `).all();
+
+    // Rebuild as a single transaction so errors cannot leave partial derived
+    // results. Old results for apps that no longer qualify are removed too.
+    let scoredApps = 0;
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec('DELETE FROM trend_model_scores; DELETE FROM derived_window_metrics;');
+      for (const app of eligibleApps) {
+        if (this.calculateForApp(app, now).length > 0) scoredApps++;
       }
-      offset += apps.length;
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
     }
-    return count;
+
+    console.log(`[DerivedMetricsCalculator] ${eligibleApps.length} candidates (>=3 observations), ${scoredApps} apps with valid windows.`);
+    return scoredApps;
   }
 }
 
