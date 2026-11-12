@@ -59,8 +59,42 @@
       <div class="visual-layout">
         <div class="map-pane">
           <div class="map-header"><span id="mapHeading">OBSERVED APPS</span><span id="mapSubheading">Gray = insufficient evidence</span></div>
-          <div class="canvas-frame" id="canvasPane"><canvas id="treemapCanvas" aria-label="Interactive app treemap"></canvas><div class="canvas-tooltip hidden" id="canvasTooltip" role="status"></div><div class="empty-message hidden" id="emptyMessage"></div></div>
-          <div class="map-footer"><div class="legend"><span class="legend-square no-data"></span>Insufficient data<span class="legend-divider"></span><span class="legend-gradient"></span>Lower → Higher signal</div><span>Colors relative within platform · Not download forecasts</span></div>
+          <div class="canvas-frame" id="canvasPane">
+            <canvas id="treemapCanvas" aria-label="Interactive app treemap"></canvas>
+            <div id="readinessSurface" class="readiness-surface hidden" aria-label="Data readiness overview">
+              <div class="readiness-intro">
+                <div><span class="readiness-kicker">COLLECTION STATUS / NOT A GROWTH RANKING</span>
+                  <h3>Building the evidence.</h3>
+                  <p>TrendLab is collecting observations across time. A trend cannot be inferred from one snapshot, and we won't manufacture a ranking while evidence is missing.</p>
+                </div>
+                <div class="readiness-count"><strong id="readinessScored">0</strong><span>apps with a usable<br>selected signal</span></div>
+              </div>
+              <div class="readiness-bar-heading"><span>Observed metric-days in selected window</span><span id="readinessTotal">—</span></div>
+              <div id="readinessBar" class="readiness-bar" role="img" aria-label="Observation-day distribution"></div>
+              <div class="readiness-buckets">
+                <div class="readiness-bucket"><span class="bucket-marker b0"></span><span>NO METRIC</span><strong id="readinessBucket0">—</strong></div>
+                <div class="readiness-bucket"><span class="bucket-marker b1"></span><span>1 DAY</span><strong id="readinessBucket1">—</strong></div>
+                <div class="readiness-bucket"><span class="bucket-marker b2"></span><span>2 DAYS</span><strong id="readinessBucket2">—</strong></div>
+                <div class="readiness-bucket"><span class="bucket-marker b3"></span><span>3+ DAYS</span><strong id="readinessBucket3">—</strong></div>
+              </div>
+              <div class="readiness-divider"></div>
+              <div class="readiness-bottom">
+                <div class="readiness-explanation">
+                  <span class="readiness-kicker">WHY NO TREEMAP?</span>
+                  <h4>Not enough comparable trends yet.</h4>
+                  <p>A treemap of thousands of equal gray cells would imply a meaningful comparison where none exists. This view shows collection readiness instead. At least eight apps need a valid signal before the map becomes useful.</p>
+                  <span class="readiness-note">Three metric-days alone do not guarantee a valid 7, 30, or 90-day trend: the measured time span and freshness also matter.</span>
+                </div>
+                <div class="readiness-recent">
+                  <div class="readiness-recent-title">LATEST OBSERVED <span>Open app details</span></div>
+                  <div id="readinessRecent" class="readiness-recent-list"></div>
+                </div>
+              </div>
+            </div>
+            <div class="canvas-tooltip hidden" id="canvasTooltip" role="status"></div>
+            <div class="empty-message hidden" id="emptyMessage"></div>
+          </div>
+          <div class="map-footer" id="mapFooter"><div class="legend"><span class="legend-square no-data"></span>Insufficient data<span class="legend-divider"></span><span class="legend-gradient"></span>Lower → Higher signal</div><span>Colors relative within platform · Not download forecasts</span></div>
         </div>
         <aside class="ranking-pane" aria-label="App rankings">
           <div class="ranking-title"><div><div class="eyebrow">EXPLORE</div><h3>App directory</h3></div><span id="tableCount" class="count-pill">—</span></div>
@@ -92,6 +126,7 @@
     </section>
   </div>
   <script src="js/treemap.js"></script>
+  <script src="js/readiness.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

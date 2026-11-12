@@ -144,7 +144,9 @@ class TrendLabApp {
     document.getElementById('qualityCount').textContent = this.formatCount(scored) + ' with signal';
     document.getElementById('tableCount').textContent = this.formatCount(apps.length);
     document.getElementById('mapSubheading').textContent = this.formatCount(apps.length - scored) + ' unscored · muted gray';
-    document.getElementById('areaExplanation').textContent = this.platform === 'all' ?
+    document.getElementById('areaExplanation').textContent = scored < 8 ?
+      'Evidence is still accumulating. The trend treemap is hidden until eight apps have a valid selected signal; the panel below shows real collection progress.' :
+      this.platform === 'all' ?
       'Mixed platforms: equal tile weights because Android install counters and iOS ratings cannot be combined. Color scales are calculated within each platform.' :
       'Tile area uses log10 of the latest observed ' +
       (this.platform === 'android' ? 'Android install counter or rating count' : 'iOS rating count') +
@@ -153,8 +155,80 @@ class TrendLabApp {
     this.renderDirectory(apps);
   }
 
+  // Show a truthful readiness dashboard while the selected window cannot
+  // support a meaningful cross-app trend comparison.
+  renderReadiness(apps, scoredApps) {
+    const usingReadiness = scoredApps.length < 8;
+    const panel = document.getElementById('readinessSurface');
+    panel.classList.toggle('hidden', !usingReadiness);
+    this.canvas.classList.toggle('hidden', usingReadiness);
+    document.getElementById('mapFooter').classList.toggle('hidden', usingReadiness);
+    if (!usingReadiness) return false;
+
+    this.tooltip.classList.add('hidden');
+    this.hovered = null;
+    this.rects = [];
+    const summary = TrendLabReadiness.summarizeReadiness(apps, this.window);
+    const set = (name, text) => { document.getElementById(name).textContent = text; };
+    set('readinessScored', this.formatCount(scoredApps.length));
+    set('readinessTotal', this.formatCount(apps.length) + ' apps');
+    summary.buckets.forEach((value, index) => {
+      set('readinessBucket' + index, this.formatCount(value));
+    });
+
+    const bar = document.getElementById('readinessBar');
+    bar.replaceChildren();
+    summary.buckets.forEach((value, index) => {
+      if (!value) return;
+      const segment = document.createElement('div');
+      segment.className = 'readiness-bar-segment b' + index;
+      segment.style.width = (value / Math.max(1, apps.length) * 100) + '%';
+      segment.title = ['No usable metric', 'One metric-day', 'Two metric-days', 'Three or more metric-days'][index] + ': ' + value;
+      bar.appendChild(segment);
+    });
+
+    const recents = document.getElementById('readinessRecent');
+    recents.replaceChildren();
+    const recent = [...apps].filter(app => app.lastObservedAt)
+      .sort((a, b) => (b.lastObservedAt || '').localeCompare(a.lastObservedAt || ''))
+      .slice(0, 5);
+    for (const app of recent) {
+      const item = document.createElement('button');
+      item.className = 'readiness-app';
+      item.type = 'button';
+      const name = document.createElement('span');
+      name.className = 'readiness-app-name';
+      name.textContent = app.title || 'Unknown app';
+      const detail = document.createElement('span');
+      detail.className = 'readiness-app-meta';
+      const days = TrendLabReadiness.countMetricDays(app, this.window);
+      detail.textContent = app.platform.toUpperCase() + ' · ' + days +
+        (days === 1 ? ' metric-day · ' : ' metric-days · ') +
+        new Date(app.lastObservedAt).toLocaleDateString();
+      item.append(name, detail);
+      item.addEventListener('click', () => this.openApp(app));
+      recents.appendChild(item);
+    }
+    if (!recent.length) {
+      const p = document.createElement('p');
+      p.className = 'readiness-app-meta';
+      p.textContent = 'No observations for this filter yet.';
+      recents.appendChild(p);
+    }
+    return true;
+  }
+
   layoutAndDraw(apps = this.filtered()) {
     if (!this.dataset) return;
+    const scoredApps = apps.filter(app => this.getScore(app) !== null);
+    const readiness = this.renderReadiness(apps, scoredApps);
+    document.getElementById('mapHeading').textContent = readiness ?
+      'COLLECTION READINESS' : 'TREND MAP / ' + this.window.toUpperCase();
+    document.getElementById('mapSubheading').textContent = readiness ?
+      this.formatCount(apps.length - scoredApps.length) + ' apps without selected signal' :
+      this.formatCount(scoredApps.length) + ' scored apps · unscored excluded';
+    if (readiness) return;
+
     const w = this.canvasPane.clientWidth;
     const h = this.canvasPane.clientHeight;
     if (!w || !h) return;
@@ -163,14 +237,7 @@ class TrendLabApp {
     this.canvas.height = Math.round(h * this.dpr);
     this.canvas.style.width = w + 'px';
     this.canvas.style.height = h + 'px';
-    this.rects = [];
-    const msg = document.getElementById('emptyMessage');
-    msg.classList.toggle('hidden', apps.length > 0);
-    if (!apps.length) {
-      msg.textContent = 'No observed apps match these filters.';
-      return;
-    }
-    const items = apps.map(app => ({
+    const items = scoredApps.map(app => ({
       app,
       weight: this.platform === 'all' ? 1 : Math.max(1, Number(app.volumeScale) || 1)
     })).sort((a, b) => b.weight - a.weight || a.app.title.localeCompare(b.app.title));
@@ -304,12 +371,14 @@ class TrendLabApp {
         title.textContent = app.title;
         const detail = document.createElement('div');
         detail.className = 'rank-details';
-        detail.textContent = (app.developer || 'Unknown developer').slice(0, 40);
+        const days = TrendLabReadiness.countMetricDays(app, this.window);
+        detail.textContent = (app.developer || 'Unknown developer').slice(0, 34) +
+          ' · ' + days + 'd observed';
         middle.append(title, detail);
         const score = document.createElement('span');
         const value = this.getScore(app);
         score.className = 'rank-score' + (value === null ? ' unknown' : '');
-        score.textContent = value === null ? 'N/A' : value.toFixed(1);
+        score.textContent = value === null ? 'Collecting' : value.toFixed(1);
         button.append(index, middle, score);
         button.addEventListener('click', () => this.openApp(app));
         this.side.appendChild(button);
