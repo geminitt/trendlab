@@ -35,8 +35,8 @@ test('scale map keeps every distinct measured app by default and allows explicit
 });
 
 test('rating color has fixed anchored thresholds and missing ratings remain neutral', () => {
-  assert.equal(scaleColor(app('x', 'ios', 100, 'observed_rating_count', 4.9)), '#1bbb75');
-  assert.equal(scaleColor(app('x', 'ios', 100, 'observed_rating_count', 2.3)), '#9a468c');
+  assert.equal(scaleColor(app('x', 'ios', 100, 'observed_rating_count', 4.9)), '#176431');
+  assert.equal(scaleColor(app('x', 'ios', 100, 'observed_rating_count', 2.3)), '#8c251c');
   assert.equal(scaleColor(app('x', 'ios', 100, 'observed_rating_count', null)), '#3b4a56');
 });
 
@@ -82,5 +82,5 @@ test('US star color remains aligned with US rating counter for non-US catalog ro
     { storefront: 'us', score: 4.7 }
   ];
   assert.equal(getLatestStarRating(item), 4.7);
-  assert.equal(scaleColor(item), '#1bbb75');
+  assert.equal(scaleColor(item), '#176431');
 });
