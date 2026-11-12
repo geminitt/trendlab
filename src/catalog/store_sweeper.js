@@ -14,6 +14,7 @@ class StoreSweeper {
   async sweepAppleEducationCharts(storefronts = ['us', 'vn', 'gb', 'de', 'jp', 'in', 'ca', 'au', 'fr']) {
     console.log(`[StoreSweeper] Sweeping Apple App Store Education Charts across ${storefronts.length} storefronts...`);
     let totalDiscovered = 0;
+    const stats = { attempted: storefronts.length, succeeded: 0, failed: 0, rows: 0 };
 
     for (const sf of storefronts) {
       try {
@@ -51,13 +52,17 @@ class StoreSweeper {
           totalDiscovered++;
         }
 
+        stats.succeeded++;
         // Slight pause between storefront queries
         await new Promise(r => setTimeout(r, 600));
       } catch (err) {
+        stats.failed++;
         console.warn(`    Warning on storefront ${sf}:`, err.message);
       }
     }
 
+    stats.rows = totalDiscovered;
+    this.lastAppleStats = stats;
     console.log(`[StoreSweeper] Apple sweep completed: ${totalDiscovered} total app-storefront mappings registered.`);
     return totalDiscovered;
   }
@@ -66,6 +71,7 @@ class StoreSweeper {
   async sweepGooglePlayEducationCharts(countries = config.catalog.surveyedStorefronts || ['us']) {
     console.log(`[StoreSweeper] Sweeping Google Play Education Apps...`);
     let totalDiscovered = 0;
+    const stats = { attempted: countries.length, succeeded: 0, failed: 0, rows: 0 };
 
     // Top chart discovery is capped and country-specific; it is never market coverage.
     for (const country of countries) {
@@ -76,6 +82,7 @@ class StoreSweeper {
           num: 100,
           country
         });
+        stats.succeeded++;
         console.log(`  Google Play Top Free Education [${country}]: ${apps.length} rows`);
         const observedAt = new Date().toISOString();
         for (const [index, item] of apps.entries()) {
@@ -101,6 +108,7 @@ class StoreSweeper {
           totalDiscovered++;
         }
       } catch (err) {
+        stats.failed++;
         console.warn(`  Google Play chart failed [${country}]:`, err.message);
       }
       await new Promise(r => setTimeout(r, 1200));
@@ -109,6 +117,8 @@ class StoreSweeper {
     // Keyword-based discovery is intentionally removed: a few English terms
     // cannot represent the worldwide official Education category.
 
+    stats.rows = totalDiscovered;
+    this.lastAndroidStats = stats;
     console.log(`[StoreSweeper] Google Play sweep completed: ${totalDiscovered} apps registered.`);
     return totalDiscovered;
   }
