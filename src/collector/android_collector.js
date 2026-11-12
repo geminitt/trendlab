@@ -74,12 +74,15 @@ class AndroidCollector {
 
     let succeeded = 0;
     let failed = 0;
+    let attempted = 0;
+    let consecutiveRateLimits = 0;
     const baseDelay = config.collector.android.requestDelayMs || 1500;
     const jitter = config.collector.android.randomJitterMs || 500;
 
     for (let i = 0; i < apps.length; i++) {
       const app = apps[i];
       const res = await this.collectApp(app);
+      attempted++;
 
       this.repo.recordCollectionAttempt({
         platformAppId: app.id, storefront: 'global',
@@ -88,11 +91,18 @@ class AndroidCollector {
       });
 
       if (res.success) {
+        consecutiveRateLimits = 0;
         succeeded++;
         console.log(`  [${i + 1}/${apps.length}] ${app.title} (${res.appId}) -> OK (${res.latency}ms)`);
       } else {
         failed++;
+        consecutiveRateLimits = /(?:429|rate.?limit|too many requests)/i.test(String(res.error)) ?
+          consecutiveRateLimits + 1 : 0;
         console.warn(`  [${i + 1}/${apps.length}] ${app.title} (${res.appId}) -> FAILED: ${res.error}`);
+        if (consecutiveRateLimits >= (config.collector.android.maxConsecutiveErrors ?? 5)) {
+          console.warn('[AndroidCollector] Halting batch after repeated rate-limit responses.');
+          break;
+        }
       }
 
       // Respect rate-limiting with random jitter
@@ -103,7 +113,7 @@ class AndroidCollector {
     }
 
     console.log(`[AndroidCollector] Finished: ${succeeded} succeeded, ${failed} failed.`);
-    return { attempted: apps.length, succeeded, failed };
+    return { attempted, succeeded, failed };
   }
 }
 
