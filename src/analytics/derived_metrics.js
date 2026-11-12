@@ -1,22 +1,96 @@
 const Repository = require('../storage/repository');
 const config = require('../../config/default.json');
 
-// Compute Theil-Sen Robust Slope (median of all pairwise slopes)
+const DAY_MS = 86400000;
+const WINDOWS = [
+  { name: '7d', days: 7 },
+  { name: '14d', days: 14 },
+  { name: '30d', days: 30 },
+  { name: '90d', days: 90 },
+  { name: 'all', days: null }
+];
+
+function validCounter(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
 function computeTheilSenSlope(points) {
-  if (points.length < 2) return 0.0;
+  if (points.length < 2) return null;
   const slopes = [];
   for (let i = 0; i < points.length; i++) {
     for (let j = i + 1; j < points.length; j++) {
-      const dt = (points[j].t - points[i].t) / (1000 * 3600 * 24); // days
-      if (dt > 0) {
-        slopes.push((points[j].val - points[i].val) / dt);
-      }
+      const elapsed = (points[j].t - points[i].t) / DAY_MS;
+      if (elapsed > 0) slopes.push((points[j].val - points[i].val) / elapsed);
     }
   }
-  if (slopes.length === 0) return 0.0;
+  if (!slopes.length) return null;
   slopes.sort((a, b) => a - b);
   const mid = Math.floor(slopes.length / 2);
-  return slopes.length % 2 !== 0 ? slopes[mid] : (slopes[mid - 1] + slopes[mid]) / 2;
+  return slopes.length % 2 ? slopes[mid] : (slopes[mid - 1] + slopes[mid]) / 2;
+}
+
+function calculateWindow(series, platform, window, now, priorShrinkage) {
+  const endMs = now.getTime();
+  const startMs = window.days === null ? -Infinity : endMs - window.days * DAY_MS;
+  const field = platform === 'android' ? 'observed_install_counter' : 'observed_rating_count';
+  // Never silently replace a missing install counter with ratings: these are different signals.
+  // For iOS, count only one storefront per series, otherwise rating totals get mixed.
+  const parsed = series.map(s => ({
+    ...s,
+    t: Date.parse(s.observed_at),
+    val: s[field]
+  })).filter(s => Number.isFinite(s.t) && s.t >= startMs && s.t <= endMs && validCounter(s.val));
+  parsed.sort((a, b) => a.t - b.t);
+  // Collapse duplicate timestamps, preferring the most recently loaded row.
+  const points = parsed.filter((p, i) => i === 0 || p.t !== parsed[i - 1].t);
+  if (points.length < 3) return null;
+  const first = points[0];
+  const last = points[points.length - 1];
+  const duration = (last.t - first.t) / DAY_MS;
+  if (duration <= 0) return null;
+
+  const intervals = [];
+  for (let i = 1; i < points.length; i++) {
+    const elapsed = (points[i].t - points[i - 1].t) / DAY_MS;
+    const delta = points[i].val - points[i - 1].val;
+    if (elapsed <= 0 || delta < 0) return null; // Counter reset/revision requires separate investigation.
+    intervals.push({ delta, days: elapsed, velocity: delta / elapsed });
+  }
+
+  const totalDelta = last.val - first.val;
+  const meanVelocity = totalDelta / duration;
+  const mid = points[Math.floor(points.length / 2)];
+  const earlyDays = (mid.t - first.t) / DAY_MS;
+  const lateDays = (last.t - mid.t) / DAY_MS;
+  if (earlyDays <= 0 || lateDays <= 0) return null;
+  const earlyVelocity = (mid.val - first.val) / earlyDays;
+  const lateVelocity = (last.val - mid.val) / lateDays;
+
+  // Sustained velocity: fraction of observed intervals with a rate at least
+  // half the mean rate. This is NOT a count of non-decreasing cumulative values.
+  const persistence = meanVelocity > 0
+    ? intervals.filter(i => i.velocity >= meanVelocity * 0.5).length / intervals.length
+    : 0;
+  const observedDays = new Set(points.map(p => new Date(p.t).toISOString().slice(0, 10))).size;
+  const expectedDays = window.days === null ? Math.max(1, Math.ceil(duration)) : window.days;
+  const completeness = Math.min(1, observedDays / Math.max(1, expectedDays));
+
+  // The field's semantics remain an observed counter, not verified daily downloads.
+  return {
+    deltaInstalls: platform === 'android' ? totalDelta : null,
+    deltaRatings: platform === 'ios' ? totalDelta : null,
+    ratingVelocityDaily: platform === 'ios' ? meanVelocity : null,
+    rankDelta: null, // Rankings require a separate storefront/chart-specific history.
+    relativeGrowth: first.val > 0 ? totalDelta / first.val : null,
+    dampenedGrowth: totalDelta / (first.val + priorShrinkage),
+    momentumScore: lateVelocity - earlyVelocity,
+    accelerationScore: (lateVelocity - earlyVelocity) / (duration / 2),
+    persistenceRatio: persistence,
+    theilSenSlope: computeTheilSenSlope(points.map(p => ({ t: p.t, val: p.val }))),
+    completeness,
+    windowStart: window.days === null ? new Date(first.t).toISOString() : new Date(startMs).toISOString(),
+    windowEnd: now.toISOString()
+  };
 }
 
 class DerivedMetricsCalculator {
@@ -25,125 +99,41 @@ class DerivedMetricsCalculator {
   }
 
   calculateForApp(platformApp, now = new Date()) {
-    const series = this.repo.getMetricsSeries(platformApp.id);
-    if (!series || series.length < 1) return [];
-
-    const windows = [
-      { name: '7d', days: 7 },
-      { name: '14d', days: 14 },
-      { name: '30d', days: 30 },
-      { name: '90d', days: 90 },
-      { name: 'all', days: 365 }
-    ];
-
+    const series = this.repo.getMetricsSeries(platformApp.id) || [];
+    if (!series.length) return [];
     const results = [];
-    const nowMs = now.getTime();
-    const isAndroid = platformApp.platform === 'android';
-
-    for (const win of windows) {
-      const startMs = nowMs - (win.days * 24 * 3600 * 1000);
-      const windowStart = new Date(startMs).toISOString();
-      const windowEnd = now.toISOString();
-
-      // Filter snapshots falling into window
-      const winPoints = series.filter(s => new Date(s.observed_at).getTime() >= startMs);
-      const pointsToUse = winPoints.length > 0 ? winPoints : series;
-
-      const first = pointsToUse[0];
-      const last = pointsToUse[pointsToUse.length - 1];
-
-      // Primary growth variable: installs for Android (if present), ratings for iOS
-      const vStart = isAndroid ? (first.observed_install_counter || first.observed_rating_count || 0) : (first.observed_rating_count || 0);
-      const vEnd = isAndroid ? (last.observed_install_counter || last.observed_rating_count || 0) : (last.observed_rating_count || 0);
-
-      const deltaValue = Math.max(0, vEnd - vStart);
-      const dtDays = Math.max(1, (new Date(last.observed_at).getTime() - new Date(first.observed_at).getTime()) / (1000 * 3600 * 24));
-
-      // 1. Velocities
-      const ratingVelocityDaily = isAndroid
-        ? Math.max(0, (last.observed_rating_count || 0) - (first.observed_rating_count || 0)) / dtDays
-        : deltaValue / dtDays;
-
-      // 2. Growth metrics
-      const relativeGrowth = vStart > 0 ? deltaValue / vStart : (deltaValue > 0 ? 1.0 : 0.0);
-      const kPrior = config.analytics.priorShrinkage || 500.0;
-      const dampenedGrowth = deltaValue / (vStart + kPrior);
-
-      // 3. Acceleration & Momentum (split window in half if enough points)
-      let momentumScore = 0.0;
-      let accelerationScore = 0.0;
-      let positiveSteps = 0;
-
-      if (pointsToUse.length >= 3) {
-        const midIdx = Math.floor(pointsToUse.length / 2);
-        const midPoint = pointsToUse[midIdx];
-        const vMid = isAndroid ? (midPoint.observed_install_counter || midPoint.observed_rating_count || 0) : (midPoint.observed_rating_count || 0);
-
-        const dt1 = Math.max(1, (new Date(midPoint.observed_at).getTime() - new Date(first.observed_at).getTime()) / (1000 * 3600 * 24));
-        const dt2 = Math.max(1, (new Date(last.observed_at).getTime() - new Date(midPoint.observed_at).getTime()) / (1000 * 3600 * 24));
-
-        const vel1 = Math.max(0, vMid - vStart) / dt1;
-        const vel2 = Math.max(0, vEnd - vMid) / dt2;
-
-        momentumScore = vel2 - vel1;
-        accelerationScore = (vel2 - vel1) / ((dt1 + dt2) / 2);
-
-        // Directional persistence
-        for (let i = 1; i < pointsToUse.length; i++) {
-          const prevVal = isAndroid ? (pointsToUse[i-1].observed_install_counter || 0) : (pointsToUse[i-1].observed_rating_count || 0);
-          const currVal = isAndroid ? (pointsToUse[i].observed_install_counter || 0) : (pointsToUse[i].observed_rating_count || 0);
-          if (currVal >= prevVal) positiveSteps++;
-        }
-      }
-
-      const persistenceRatio = pointsToUse.length > 1 ? positiveSteps / (pointsToUse.length - 1) : 1.0;
-
-      // 4. Robust Theil-Sen Slope
-      const timePoints = pointsToUse.map(p => ({
-        t: new Date(p.observed_at).getTime(),
-        val: isAndroid ? (p.observed_install_counter || p.observed_rating_count || 0) : (p.observed_rating_count || 0)
-      }));
-      const theilSenSlope = computeTheilSenSlope(timePoints);
-
-      // 5. Completeness
-      const completeness = Math.min(1.0, pointsToUse.length / Math.max(1, Math.min(win.days, 7)));
-
-      const derivedObj = {
+    const prior = config.analytics.priorShrinkage ?? 500;
+    for (const window of WINDOWS) {
+      const metrics = calculateWindow(series, platformApp.platform, window, now, prior);
+      if (!metrics) continue; // Insufficient / invalid evidence must not become a zero score.
+      const row = {
         platformAppId: platformApp.id,
-        windowType: win.name,
-        windowStart,
-        windowEnd,
-        deltaInstalls: isAndroid ? deltaValue : null,
-        deltaRatings: !isAndroid ? deltaValue : Math.max(0, (last.observed_rating_count || 0) - (first.observed_rating_count || 0)),
-        ratingVelocityDaily,
-        rankDelta: 0,
-        relativeGrowth,
-        dampenedGrowth,
-        momentumScore,
-        accelerationScore,
-        persistenceRatio,
-        theilSenSlope,
-        completeness
+        windowType: window.name,
+        ...metrics
       };
-
-      this.repo.saveDerivedMetrics(derivedObj);
-      results.push(derivedObj);
+      this.repo.saveDerivedMetrics(row);
+      results.push(row);
     }
-
     return results;
   }
 
   calculateAll() {
-    const apps = this.repo.getPlatformApps({ limit: 1000 });
-    console.log(`[DerivedMetricsCalculator] Computing derived window metrics for ${apps.length} apps...`);
+    let offset = 0;
     let count = 0;
-    for (const app of apps) {
-      this.calculateForApp(app);
-      count++;
+    const batchSize = 500;
+    while (true) {
+      const apps = this.repo.getPlatformApps({ limit: batchSize, offset });
+      if (!apps.length) break;
+      for (const app of apps) {
+        this.calculateForApp(app);
+        count++;
+      }
+      offset += apps.length;
     }
-    console.log(`[DerivedMetricsCalculator] Completed metrics calculation for ${count} apps.`);
     return count;
   }
 }
 
 module.exports = DerivedMetricsCalculator;
+module.exports.calculateWindow = calculateWindow;
+module.exports.computeTheilSenSlope = computeTheilSenSlope;
