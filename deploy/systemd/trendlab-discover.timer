@@ -1,0 +1,11 @@
+[Unit]
+Description=TrendLab Daily Supplemental Education Discovery
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+Unit=trendlab-discover.service
+
+[Install]
+WantedBy=timers.target
