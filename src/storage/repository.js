@@ -124,17 +124,17 @@ class Repository {
     windowType,
     windowStart,
     windowEnd,
-    deltaInstalls = 0,
-    deltaRatings = 0,
-    ratingVelocityDaily = 0,
-    rankDelta = 0,
-    relativeGrowth = 0,
-    dampenedGrowth = 0,
-    momentumScore = 0,
-    accelerationScore = 0,
-    persistenceRatio = 1,
-    theilSenSlope = 0,
-    completeness = 1,
+    deltaInstalls = null,
+    deltaRatings = null,
+    ratingVelocityDaily = null,
+    rankDelta = null,
+    relativeGrowth = null,
+    dampenedGrowth = null,
+    momentumScore = null,
+    accelerationScore = null,
+    persistenceRatio = null,
+    theilSenSlope = null,
+    completeness = null,
     computedAt = new Date().toISOString()
   }) {
     const id = crypto.randomUUID();
@@ -144,12 +144,12 @@ class Repository {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id, platformAppId, windowType, windowStart, windowEnd,
-      Number(deltaInstalls) || 0, Number(deltaRatings) || 0,
-      Number(ratingVelocityDaily) || 0, Number(rankDelta) || 0,
-      Number(relativeGrowth) || 0, Number(dampenedGrowth) || 0,
-      Number(momentumScore) || 0, Number(accelerationScore) || 0,
-      Number(persistenceRatio) || 1, Number(theilSenSlope) || 0,
-      Number(completeness) || 1, computedAt
+      // Preserve missing values as NULL and valid zeroes as zero. Never substitute 1 for 0.
+      ...[deltaInstalls, deltaRatings, ratingVelocityDaily, rankDelta,
+        relativeGrowth, dampenedGrowth, momentumScore, accelerationScore,
+        persistenceRatio, theilSenSlope, completeness]
+        .map(value => value === null || value === undefined ? null : Number(value)),
+      computedAt
     );
     return id;
   }
