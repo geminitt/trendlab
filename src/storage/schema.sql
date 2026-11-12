@@ -148,3 +148,19 @@ CREATE INDEX IF NOT EXISTS idx_collection_store_due
   ON collection_state(storefront, next_due_at, last_attempted_at);
 CREATE INDEX IF NOT EXISTS idx_observed_app_store_time
   ON observed_metrics(platform_app_id, storefront, observed_at);
+
+
+-- Provider update checks are catalog metadata, NOT app-store observations.
+-- Prevent a stale external dump from being silently represented as a current census.
+CREATE TABLE IF NOT EXISTS catalog_source_sync (
+    source_id TEXT PRIMARY KEY,
+    source_url TEXT NOT NULL,
+    last_checked_at TEXT NOT NULL,
+    source_version TEXT,
+    last_source_updated_at TEXT,
+    last_imported_version TEXT,
+    last_imported_at TEXT,
+    last_status TEXT NOT NULL,
+    new_apps INTEGER,
+    last_error TEXT
+);
