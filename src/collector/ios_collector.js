@@ -134,12 +134,18 @@ class IosCollector {
     const batchSize = config.collector.ios.lookupBatchSize || 50;
     let totalSucceeded = 0;
     let totalFailed = 0;
+    let attempted = 0;
 
     for (let i = 0; i < apps.length; i += batchSize) {
       const chunk = apps.slice(i, i + batchSize);
       const res = await this.collectBatch(chunk, storefront);
+      attempted += chunk.length;
       totalSucceeded += res.succeeded;
       totalFailed += res.failed;
+      if (/(?:429|rate.?limit|too many requests)/i.test(String(res.error || ''))) {
+        console.warn('[IosCollector] Halting batch after rate-limit response.');
+        break;
+      }
 
       // Rate limit delay between batches
       if (i + batchSize < apps.length) {
@@ -150,7 +156,7 @@ class IosCollector {
     }
 
     console.log(`[IosCollector] Finished: ${totalSucceeded} succeeded, ${totalFailed} failed.`);
-    return { attempted: apps.length, succeeded: totalSucceeded, failed: totalFailed };
+    return { attempted, succeeded: totalSucceeded, failed: totalFailed };
   }
 }
 
