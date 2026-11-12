@@ -3,162 +3,94 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TrendLab — Global Education App Discovery</title>
+  <meta name="theme-color" content="#0b0e13">
+  <title>TrendLab | Education App Intelligence</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- Header Bar -->
-  <header class="app-header">
-    <div class="header-left">
-      <div class="logo">
-        <span class="logo-badge">TRENDLAB</span>
-        <h1>Global Education App Discovery</h1>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-symbol" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div><div class="brand-title">TREND<span>LAB</span></div><div class="brand-subtitle">GLOBAL EDUCATION INTELLIGENCE</div></div>
       </div>
-      <div class="subtitle">Karpathy-Style Interactive Canvas Treemap & Momentum Engine</div>
-    </div>
-    <div class="header-right">
-      <div class="meta-pill" id="metaTotalApps">Apps: Loading...</div>
-      <div class="meta-pill" id="metaLastUpdated">Updated: Loading...</div>
-      <div class="view-toggles">
-        <button class="view-btn active" id="btnViewTreemap" title="Full Treemap View">🗺️ Treemap</button>
-        <button class="view-btn" id="btnViewSplit" title="Split Treemap + Table">◫ Split</button>
-        <button class="view-btn" id="btnViewTable" title="Leaderboard Table Only">☰ Table</button>
+      <div class="top-right"><span class="status-dot"></span><span>Local research dataset</span><span class="top-separator"></span><time id="metaLastUpdated">Not loaded</time></div>
+    </header>
+
+    <section class="overview" aria-label="Dataset overview">
+      <div class="overview-heading">
+        <div><div class="eyebrow">RESEARCH OVERVIEW / EDUCATION</div><h1>The app landscape, at a glance.</h1></div>
+        <p>Observed store signals, not estimated downloads. Metrics are provisional until enough history has accumulated.</p>
       </div>
-    </div>
-  </header>
-
-  <!-- Controls Bar -->
-  <section class="controls-bar">
-    <div class="control-group">
-      <label>Window:</label>
-      <div class="button-toggle" id="windowToggle">
-        <button class="toggle-btn" data-window="7d">7D</button>
-        <button class="toggle-btn" data-window="14d">14D</button>
-        <button class="toggle-btn active" data-window="30d">30D</button>
-        <button class="toggle-btn" data-window="90d">90D</button>
-        <button class="toggle-btn" data-window="all">All</button>
+      <div class="kpis">
+        <div class="kpi"><span>CATALOGED APPS</span><strong id="kpiCatalog">—</strong><small>Known Education IDs</small></div>
+        <div class="kpi"><span>OBSERVED APPS</span><strong id="kpiObserved">—</strong><small>At least one snapshot</small></div>
+        <div class="kpi"><span>WITH TREND EVIDENCE</span><strong id="kpiScored">—</strong><small>Selected time window</small></div>
+        <div class="kpi"><span>CATALOG COVERAGE</span><strong id="kpiCoverage">—</strong><small>Observed / cataloged</small></div>
+        <div class="kpi"><span>RECENTLY OBSERVED</span><strong id="kpiFresh">—</strong><small>Snapshot within 48 hours</small></div>
       </div>
-    </div>
+    </section>
 
-    <div class="control-group">
-      <label>Platform:</label>
-      <div class="button-toggle" id="platformToggle">
-        <button class="toggle-btn active" data-platform="all">All</button>
-        <button class="toggle-btn" data-platform="android">Android</button>
-        <button class="toggle-btn" data-platform="ios">iOS</button>
+    <section class="workspace" aria-label="Trend explorer">
+      <div class="workspace-top">
+        <div class="section-header"><div class="eyebrow">VISUAL EXPLORER</div><h2>Education app treemap</h2></div>
+        <div class="workspace-meta"><span id="visibleCount">—</span><span class="workspace-separator">·</span><span id="qualityCount">—</span></div>
       </div>
-    </div>
-
-    <div class="control-group">
-      <label>Color Signal:</label>
-      <select id="colorSelect" class="styled-select">
-        <option value="model_c_breakout" selected>Mode A: Emerging Breakouts (High Momentum)</option>
-        <option value="model_b_compounder">Mode B: Sustained Growth (Compounders)</option>
-        <option value="model_a_growth">Model A: Absolute Volume Delta</option>
-        <option value="rating_velocity">Rating Velocity (Daily New Ratings)</option>
-      </select>
-    </div>
-
-    <div class="control-group search-group">
-      <input type="text" id="searchInput" placeholder="Filter apps, developers, keywords..." class="styled-input">
-    </div>
-
-    <div class="control-group info-group">
-      <span class="info-label">📐 Area: <strong>Log₁₀(Volume)</strong> (Not market share)</span>
-    </div>
-  </section>
-
-  <!-- Main Viewport (Fluid 100% Window-Resizing Canvas) -->
-  <main class="main-viewport view-treemap" id="mainViewport">
-    <!-- Treemap Canvas Pane -->
-    <div class="canvas-pane" id="canvasPane">
-      <canvas id="treemapCanvas"></canvas>
-      <div id="canvasTooltip" class="canvas-tooltip hidden"></div>
-      <div class="canvas-legend">
-        <span>Low / Baseline</span>
-        <span class="legend-gradient"></span>
-        <span>High Breakout Momentum</span>
+      <div class="toolbar">
+        <div class="toolbar-cluster"><span class="control-label">PLATFORM</span><div class="segmented" id="platformToggle">
+          <button type="button" class="active" data-platform="all">All</button>
+          <button type="button" data-platform="android">Android</button>
+          <button type="button" data-platform="ios">iOS</button>
+        </div></div>
+        <div class="toolbar-cluster"><span class="control-label">WINDOW</span><div class="segmented" id="windowToggle">
+          <button type="button" data-window="7d">7D</button><button type="button" data-window="14d">14D</button><button type="button" class="active" data-window="30d">30D</button><button type="button" data-window="90d">90D</button><button type="button" data-window="all">ALL</button>
+        </div></div>
+        <label class="toolbar-cluster metric-cluster"><span class="control-label">COLOR BY</span><select id="colorSelect">
+          <option value="model_c_breakout">Breakout signal</option>
+          <option value="model_b_compounder">Sustained signal</option>
+          <option value="model_a_growth">Observed delta</option>
+          <option value="rating_velocity">Rating velocity</option>
+        </select></label>
+        <label class="search-field"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" placeholder="Search apps or developers…" autocomplete="off" aria-label="Search apps or developers"></label>
       </div>
-    </div>
+      <div class="interpretation"><span class="info-mark">i</span>
+        <span id="areaExplanation">All platforms use equal cell weights; install counters and rating counts are not comparable units.</span>
+      </div>
+      <div class="visual-layout">
+        <div class="map-pane">
+          <div class="map-header"><span id="mapHeading">OBSERVED APPS</span><span id="mapSubheading">Gray = insufficient evidence</span></div>
+          <div class="canvas-frame" id="canvasPane"><canvas id="treemapCanvas" aria-label="Interactive app treemap"></canvas><div class="canvas-tooltip hidden" id="canvasTooltip" role="status"></div><div class="empty-message hidden" id="emptyMessage"></div></div>
+          <div class="map-footer"><div class="legend"><span class="legend-square no-data"></span>Insufficient data<span class="legend-divider"></span><span class="legend-gradient"></span>Lower → Higher signal</div><span>Colors relative within platform · Not download forecasts</span></div>
+        </div>
+        <aside class="ranking-pane" aria-label="App rankings">
+          <div class="ranking-title"><div><div class="eyebrow">EXPLORE</div><h3>App directory</h3></div><span id="tableCount" class="count-pill">—</span></div>
+          <div class="ranking-explanation" id="rankingExplanation">Apps with measured trend evidence appear first. Unscored apps are listed separately.</div>
+          <div class="ranking-scroll"><div id="leaderboardBody" class="ranking-list"></div></div>
+        </aside>
+      </div>
+    </section>
 
-    <!-- Leaderboard Table Pane -->
-    <div class="table-pane" id="tablePane">
-      <div class="table-header">
-        <h3 id="tableTitle">Rankings</h3>
-        <span class="table-count" id="tableCount">0 apps</span>
-      </div>
-      <div class="table-scroll">
-        <table class="leaderboard-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>App Name</th>
-              <th>Platform</th>
-              <th>Score</th>
-              <th>Volume</th>
-            </tr>
-          </thead>
-          <tbody id="leaderboardBody"></tbody>
-        </table>
-      </div>
-    </div>
+    <footer class="footer"><span>TrendLab · Research prototype</span><span>Source timestamps and individual metrics available in app details · Data may be incomplete</span></footer>
   </main>
-
-  <!-- Deep-Dive Inspection Drawer -->
-  <div id="drawerOverlay" class="drawer-overlay hidden">
-    <div class="drawer-content">
-      <div class="drawer-header">
-        <div>
-          <span class="badge" id="modalPlatform">PLATFORM</span>
-          <h2 id="modalTitle">App Title</h2>
-          <div class="modal-dev" id="modalDeveloper">Developer Name</div>
-        </div>
-        <button class="drawer-close" id="drawerClose">&times;</button>
-      </div>
-
+  <div class="drawer-overlay hidden" id="drawerOverlay">
+    <div class="drawer-backdrop" id="drawerBackdrop"></div>
+    <section class="drawer" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="drawer-top"><div class="eyebrow">APPLICATION INTELLIGENCE</div><button type="button" class="close-button" id="drawerClose" aria-label="Close details">×</button></div>
+      <div class="drawer-header"><div class="platform-tag" id="modalPlatform">—</div><h2 id="modalTitle">—</h2><div class="drawer-developer" id="modalDeveloper"></div></div>
       <div class="drawer-body">
-        <div class="metric-cards-row">
-          <div class="stat-card">
-            <div class="stat-label">Observed Counter / Volume</div>
-            <div class="stat-value" id="modalVolume">0</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Trend Score</div>
-            <div class="stat-value" id="modalScore">0.0</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Rating Velocity</div>
-            <div class="stat-value" id="modalVelocity">0.0/day</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Completeness</div>
-            <div class="stat-value" id="modalCompleteness">100%</div>
-          </div>
+        <div id="modalNotice" class="detail-notice"></div>
+        <div class="detail-grid">
+          <div class="detail-stat"><span>OBSERVED COUNTER</span><strong id="modalVolume">—</strong><small id="modalVolumeType">—</small></div>
+          <div class="detail-stat"><span>SELECTED SIGNAL</span><strong id="modalScore">—</strong><small id="modalScoreType">—</small></div>
+          <div class="detail-stat"><span>RATING VELOCITY</span><strong id="modalVelocity">—</strong><small>Ratings/day · if available</small></div>
+          <div class="detail-stat"><span>WINDOW COVERAGE</span><strong id="modalCompleteness">—</strong><small>Observed days / requested days</small></div>
         </div>
-
-        <div class="section-box">
-          <h3>Snapshot History Points</h3>
-          <div id="historyTableContainer" class="history-table-container"></div>
-        </div>
-
-        <div class="section-box provenance-box">
-          <h3>Data Provenance & Audit Verification</h3>
-          <div class="provenance-grid">
-            <div><strong>Source:</strong> <span id="modalSource">-</span></div>
-            <div><strong>Method:</strong> <span id="modalMethod">-</span></div>
-            <div><strong>Payload SHA-256:</strong> <code id="modalSha">-</code></div>
-            <div><strong>Last Observed:</strong> <span id="modalLastObserved">-</span></div>
-            <div><strong>Integrity Check:</strong> <span class="badge badge-success">Verified Raw Snapshot</span></div>
-          </div>
-        </div>
-
-        <div class="drawer-actions">
-          <a id="modalStoreLink" href="#" target="_blank" rel="noopener noreferrer" class="btn-store">View on Official Store ↗</a>
-        </div>
+        <div class="detail-section"><div class="detail-section-heading"><h3>Observation timeline</h3><span id="modalHistoryCount">—</span></div><div id="historyChart" class="history-chart"></div><div id="historyTableContainer" class="history-table-container"></div></div>
+        <div class="detail-section"><h3>Data provenance</h3><div class="source-grid"><span>Source</span><strong id="modalSource">—</strong><span>Method</span><strong id="modalMethod">—</strong><span>Last recorded</span><strong id="modalLastObserved">—</strong><span>Payload reference</span><strong id="modalSha">—</strong></div></div>
+        <a id="modalStoreLink" class="store-link" href="#" target="_blank" rel="noopener noreferrer">Open official store <span aria-hidden="true">↗</span></a>
       </div>
-    </div>
+    </section>
   </div>
-
   <script src="js/treemap.js"></script>
   <script src="js/app.js"></script>
 </body>
