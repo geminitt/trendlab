@@ -17,23 +17,11 @@
       <div class="top-right"><span class="status-dot"></span><span>Local research dataset</span><span class="top-separator"></span><time id="metaLastUpdated">Not loaded</time></div>
     </header>
 
-    <section class="overview" aria-label="Dataset overview">
-      <div class="overview-heading">
-        <div><div class="eyebrow">RESEARCH OVERVIEW / EDUCATION</div><h1>The app landscape, at a glance.</h1></div>
-        <p>Observed store signals, not estimated downloads. Metrics are provisional until enough history has accumulated.</p>
-      </div>
-      <div class="kpis">
-        <div class="kpi"><span>CATALOGED APPS</span><strong id="kpiCatalog">—</strong><small>Known Education IDs</small></div>
-        <div class="kpi"><span>OBSERVED APPS</span><strong id="kpiObserved">—</strong><small>At least one snapshot</small></div>
-        <div class="kpi"><span>WITH TREND EVIDENCE</span><strong id="kpiScored">—</strong><small>Selected time window</small></div>
-        <div class="kpi"><span>CATALOG COVERAGE</span><strong id="kpiCoverage">—</strong><small>Observed / cataloged</small></div>
-        <div class="kpi"><span>RECENTLY OBSERVED</span><strong id="kpiFresh">—</strong><small>Snapshot within 48 hours</small></div>
-      </div>
-    </section>
+
 
     <section class="workspace" aria-label="Trend explorer">
       <div class="workspace-top">
-        <div class="section-header"><div class="eyebrow">VISUAL EXPLORER</div><h2>Education app treemap</h2></div>
+        <div class="section-header"><div class="eyebrow">GLOBAL EDUCATION / OBSERVED DATA</div><h2>Top Education Apps</h2></div>
         <div class="workspace-meta"><span id="visibleCount">—</span><span class="workspace-separator">·</span><span id="qualityCount">—</span></div>
       </div>
       <div class="toolbar">
@@ -97,12 +85,62 @@
           </div>
           <div class="map-footer" id="mapFooter"><div class="legend" id="mapLegend">Observed scale: area = transformed source count · color = star rating</div><span id="mapFooterNote">Not global market share or download growth</span></div>
         </div>
-        <aside class="ranking-pane" aria-label="App rankings">
-          <div class="ranking-title"><div><div class="eyebrow">EXPLORE</div><h3>App directory</h3></div><span id="tableCount" class="count-pill">—</span></div>
-          <div class="ranking-explanation" id="rankingExplanation">App directory · the selected layer determines the sort order.</div>
-          <div class="ranking-scroll"><div id="leaderboardBody" class="ranking-list"></div></div>
+        <aside class="insight-pane" aria-label="Market research overview">
+          <section class="overview" aria-label="Global collection overview">
+            <div class="overview-heading">
+              <div><div class="eyebrow">TRENDLAB / RESEARCH MONITOR</div><h2>Market Overview</h2></div>
+              <span class="overview-scope">GLOBAL OBSERVED SET</span>
+            </div>
+            <p class="overview-description">Official Education category · Android + iOS. Actual observations, not estimated downloads.</p>
+            <div class="kpis">
+              <div class="kpi"><span>CATALOGED</span><strong id="kpiCatalog">—</strong><small>Known platform IDs</small></div>
+              <div class="kpi"><span>OBSERVED</span><strong id="kpiObserved">—</strong><small>At least one snapshot</small></div>
+              <div class="kpi"><span>COVERAGE</span><strong id="kpiCoverage">—</strong><small>Of known catalog</small></div>
+              <div class="kpi"><span>RECENT · 48H</span><strong id="kpiFresh">—</strong><small>Observed platform IDs</small></div>
+            </div>
+            <div class="overview-evidence"><span class="evidence-dot"></span><strong id="kpiScored">—</strong><span>apps with trend evidence in selected window</span></div>
+          </section>
+
+          <div class="insight-grid">
+            <article class="insight-card">
+              <div class="insight-heading"><h3>Daily Observations</h3><span class="insight-icon observations">▥</span></div>
+              <p>Metric records · last 30 days · UTC</p>
+              <strong class="insight-value" id="insightObservationsValue">—</strong>
+              <div class="insight-plot" id="insightObservationsChart" role="img" aria-label="Daily observed metric records"></div>
+              <div class="insight-foot" id="insightObservationsNote">Measured snapshots only</div>
+            </article>
+            <article class="insight-card">
+              <div class="insight-heading"><h3>First Observations</h3><span class="insight-icon first">✦</span></div>
+              <p>Newly measured IDs · last 30 days · UTC</p>
+              <strong class="insight-value" id="insightFirstSeenValue">—</strong>
+              <div class="insight-plot" id="insightFirstSeenChart" role="img" aria-label="Newly observed app IDs by day"></div>
+              <div class="insight-foot" id="insightFirstSeenNote">Not new store releases</div>
+            </article>
+            <article class="insight-card">
+              <div class="insight-heading"><h3>Collection Reliability</h3><span class="insight-icon reliability">◈</span></div>
+              <p>Successful / attempted requests · 30 days</p>
+              <strong class="insight-value" id="insightSuccessValue">—</strong>
+              <div class="insight-plot" id="insightSuccessChart" role="img" aria-label="Collection attempt results by day"></div>
+              <div class="insight-foot" id="insightSuccessNote">Data from collection audit logs</div>
+            </article>
+            <article class="insight-card">
+              <div class="insight-heading"><h3>Evidence Freshness</h3><span class="insight-icon freshness">◷</span></div>
+              <p>Age of latest observation per known ID</p>
+              <strong class="insight-value" id="insightFreshValue">—</strong>
+              <div class="insight-plot" id="insightFreshnessChart" role="img" aria-label="Observation freshness distribution"></div>
+              <div class="insight-foot" id="insightFreshNote">Missing catalog IDs excluded</div>
+            </article>
+          </div>
         </aside>
       </div>
+      <details class="directory-panel" id="directoryPanel">
+        <summary><span><span class="directory-marker">▦</span> App directory</span><span class="directory-hint">Explore individual app histories · <strong id="tableCount">—</strong> observed</span></summary>
+        <div class="ranking-pane" aria-label="App rankings">
+          <div class="ranking-title"><div><div class="eyebrow">DIRECTORY</div><h3>Measured applications</h3></div></div>
+          <div class="ranking-explanation" id="rankingExplanation">App directory · the selected layer determines the sort order.</div>
+          <div class="ranking-scroll"><div id="leaderboardBody" class="ranking-list"></div></div>
+        </div>
+      </details>
     </section>
 
     <footer class="footer"><span>TrendLab · Research prototype</span><span>Source timestamps and individual metrics available in app details · Data may be incomplete</span></footer>
@@ -129,6 +167,7 @@
   <script src="js/treemap.js"></script>
   <script src="js/scale.js"></script>
   <script src="js/readiness.js"></script>
+  <script src="js/insights.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
