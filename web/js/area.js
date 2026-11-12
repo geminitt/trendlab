@@ -18,7 +18,7 @@ const SOURCE_UNIT = Object.freeze({
 
 const METRIC_LABELS = Object.freeze({
   observed_scale: 'observed source counter',
-  model_a_growth: 'absolute growth model score',
+  model_a_growth: 'observed source-counter increase',
   model_b_compounder: 'sustained growth model score',
   model_c_breakout: 'breakout model score',
   rating_velocity: 'ratings/day'
@@ -30,6 +30,13 @@ function metricValue(app, metric, windowType = '30d') {
     if (app.volumeMetric !== SOURCE_UNIT[app.platform]) return null;
     return typeof app.rawVolume === 'number' && Number.isFinite(app.rawVolume)
       ? app.rawVolume : null;
+  }
+  // The UI calls this "Observed delta": do not accidentally use Model A's
+  // log10(delta) scoring transform as the area. Use the measured raw delta.
+  if (metric === 'model_a_growth') {
+    const derived = app.metrics?.[windowType];
+    const value = app.platform === 'android' ? derived?.deltaInstalls : derived?.deltaRatings;
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
   }
   if (metric === 'rating_velocity') {
     const value = app.metrics?.[windowType]?.ratingVelocity;
