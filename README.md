@@ -165,7 +165,7 @@ npm install
 
 Khi truy cập `http://localhost:8080/`, giao diện cung cấp:
 1. **Interactive Education Treemap:**
-   - **Diện tích ô:** Thể hiện **Quy mô quan sát được** ($\log_{10}$ của lượt cài đặt / đánh giá + 1) — *tuyệt đối không nhận vơ là thị phần*.
+   - **Diện tích ô:** Tỷ lệ **tuyến tính theo phép đo đang chọn**: bộ đếm quan sát (Observed Scale), mức tăng bộ đếm gốc (Observed Delta), điểm mô hình (Breakout/Sustained), hoặc ratings/ngày (Rating Velocity). Không nén Log². Giữ Android và iOS tách biệt về đơn vị. Không đồng nhất với thị phần hay lượt tải chính xác.
    - **Dải màu:** Đổi linh hoạt giữa **Mode A: Emerging Breakouts**, **Mode B: Sustained Growth**, **Model A: Volume Delta** và **Rating Velocity**.
 2. **Bộ lọc thời gian thực:** Chuyển đổi nhanh giữa các cửa sổ 7 ngày, 14 ngày, 30 ngày, 90 ngày và All Time.
 3. **Bộ lọc nền tảng:** Xem riêng Android, riêng iOS hoặc toàn bộ hệ sinh thái.
