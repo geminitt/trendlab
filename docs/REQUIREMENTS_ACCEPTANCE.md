@@ -1,56 +1,62 @@
-# TrendLab — core requirements & acceptance criteria
+# TrendLab — Binding Vietnam research requirements (2026-11-13)
 
-Status: **binding product requirements**, not a claim that the current prototype satisfies them.
-Owner intent: personal, continuously updated research of **all discoverable apps in the official Education category worldwide**, on Google Play and Apple App Store. The goal is to find observed emerging and sustained growth, not to present a curated popularity list.
+**The owner changed the project scope from worldwide to Vietnam.** This document supersedes all earlier worldwide requirements and conflicting global-market claims elsewhere in the repository. This is a research prototype, not an audited census or a source of verified daily downloads.
 
-## R1. Global catalog discovery (P0; NOT MET)
+## Goal
 
-- Discover applications across markets and languages on **both** platforms without a predefined famous-app shortlist.
-- Automatically ingest newly published or newly discovered applications, deduplicate by stable platform identity, record when/how each ID entered the catalog, and track subsequent removals, category moves and country availability.
-- Seek a broad, regularly refreshed catalog source **subject to verified license, accessibility and provider limits**. Supplement with multi-country Top Charts, but never substitute Top Charts for complete catalog coverage.
-- **Acceptance:** repeatable automated discovery without manual imports; recorded source and discovery timestamps; demonstrable daily catalog deltas; duplicate/identity tests; measured source coverage and its known limitations.
-- **Known blocker:** no verified accessible feed that enumerates every currently live Education app worldwide. No full-global-coverage claim is permitted before this is resolved.
+Discover and monitor apps offered in the **official Education category in the Vietnamese storefront** of **both Google Play and the Apple App Store**. Analyze meaningful changes in observed source counters, VN-specific ratings and Education VN chart rankings, seeking small emerging apps as well as well-known ones. The app developer does **not** need to be Vietnamese. Keep Android and iOS separate when their measurement units differ.
 
-## R2. Continuous evidence collection and freshness (P0; PARTIAL)
+## R1 — VN-specific discovery and universe (P0; PARTIAL)
 
-- Persist real dated snapshots and revisit apps on an ongoing schedule. Balance first-time coverage vs revisits. Avoid competing systemd workers.
-- Maintain per-source/country pacing, retry/backoff, errors, and clear distinctions between unlisted, unavailable in one region, changed category, and provider/API failures.
-- A **24-hour revisit goal** is a performance target, not a promise from `refreshHours=24`.
-- **Acceptance:** 24-hour reporting of unique successful apps, elapsed collection times, aged-out apps, per-country/provider error rates, freshness distributions, and measured capacity versus total due catalog. Verify the goal at observed throughput before declaring it met.
+- `VN` is the only active lookup/chart country; never silently probe US/JP or label US observations as Vietnam evidence.
+- The old ~331k-ID imported international AppGoblin catalog remains a **candidate pool**, not the number of Education apps available in Vietnam. Keep it; it can be sampled conservatively and should never be called Vietnam coverage.
+- Apps seen on VN Education charts OR found by successful VN storefront lookups are VN-evidenced candidates. Store chart/source/date/availability and maintain distinct platform-native identities. Do not declare global delisting because one country returns a 404.
+- VN Top-Free Education charts are supplemental and incomplete, particularly for new, niche, paid, lower-ranked apps; the collector reserves a capped exploration lane of unknown catalog IDs. These sources do not prove completeness.
+- **Acceptance:** repeatable daily VN discovery with measured chart and first-seen deltas; known distinction between regional evidence, trial candidate and not-found; confirmed coverage limitations; proof that genuinely new VN app IDs can enter the catalog.
+- **Remaining blocker:** there is no verified exhaustive, live list of all Education apps available in VN. Do not claim complete market coverage.
 
-## R3. Observational data integrity (P0; PARTIAL)
+## R2 — Relevant throughput and ongoing freshness (P0; PARTIAL)
 
-- Save source, fetch time, storefront, raw payload/hash, native IDs, unit, and missingness.
-- Never label iOS rating counts as installations or downloaded units. Do not treat Android public `maxInstalls` as precise daily downloads without verification. Do not sum incompatible Android/iOS dimensions; don't replace missing with zero.
-- **Acceptance:** independent audits of raw snapshots to exported metrics, metric provenance and semantics, missing-data tests, and conspicuous uncertainty labels.
+- Optimize **new distinct VN-measured apps/day** and freshness of VN-evidenced apps, NOT raw attempt volume.
+- Prefer known VN Education chart/lookup apps; reserve bounded capacity for unverified candidate exploration (initially 20%). Do not fill all unused slots with likely unrelated international IDs.
+- Keep per-app per-VN-storefront collection state, rate limits, jitter and retry backoff. Regional not-found responses receive longer retry delays and must not trigger system-wide rate-limit cooldown; 429/network errors do.
+- An aspirational 24-hour revisit goal needs observed measurements of daily throughput, success, latency and backlog before it can be advertised as achieved.
+- **Acceptance:** demonstrated VN-only continuous collection across both platforms with per-country first observation/refresh and error reporting, no overlapping workers, safe operation after server restarts.
 
-## R4. Validated trend detection (P1; NOT YET VALIDATED)
+## R3 — Provenance and meaning of Vietnam trends (P0; PARTIAL)
 
-- Distinguish emerging breakouts, sustained growth, deceleration, reversals, persistence and noisy movements, across 7/14/30/90-day windows when valid evidence exists.
-- Use robust time-series methods with minimum observation count, time span and recency. Separate observed rates from model inference.
-- **Acceptance:** historical/forward-chaining backtests, baselines, precision/recall or rank stability, sensitivity to missing data, and reproducibility. Provisional model scores cannot be called verified.
+- Store immutable raw snapshots, numeric observation times, country and source evidence.
+- Apple `userRatingCount` observed from `country=vn` is VN storefront-specific; do not mix with `us`, `jp` or global. Source counter `maxInstalls` from Android **is NOT Vietnam-specific installs/downloads** even when the app is queried with `country=vn`. It may be used only as an explicitly labeled broad/possibly global public counter for an app available in VN.
+- VN Education chart rank is country-specific, but chart-only snapshot has **no rating/install value** and must not be made into a fake zero or downloaded-user estimate. A separate rank-change model should be developed and validated.
+- Source data from US/other markets can remain in SQLite for archival comparison but is excluded from VN scoring, VN treemap and VN metric history.
+- **Acceptance:** tests prove US/JP observations cannot influence VN count, score or star-color; source-semantic caveats shown in UI.
 
-## R5. Useful research dashboard (P1; PARTIAL)
+## R4 — Verified trend ranking (P1; NOT MET)
 
-- Interactive, dense, clearly labeled treemap with platform/source separation, documented area/color semantics, selection and provenance detail; avoid filler UI.
-- Show observed scale separately from growth and distinguish unknown/unscored from negative growth. Deduplicate logical app identities in visible rankings.
-- **Acceptance:** no unsupported visual claims; usable at early collection stages; tests of area, grouping, filtering, duplicates, accessibility and temporal metrics.
+- Keep time windows 7/14/30/90/all, require sufficient dated points, temporal coverage and freshness, separate observations from predictions and missing values from zero.
+- Model Breakout and Sustained scores remain provisional until backtests/forward validation and stability tests on **VN-scoped time series**; chart rank momentum not yet modeled. No fabricated Vietnamese downloads.
+- **Acceptance:** reproducible backtests, baselines and evidence quality statistics on VN cohorts.
 
-## R6. Unattended Ubuntu operations (P0; PARTIAL)
+## R5 — Research treemap (P1; PARTIAL)
 
-- Independent from the user's PC/SSH/browser. systemd services and timers for collection, discovery, analytics/export and backups; measured health and failures.
-- Preserve SQLite/WAL integrity, atomic export and verified recoverable backups; avoid simultaneous duplicate collection and aggressive provider requests.
-- **Acceptance:** restart/reboot and failure recovery tests, no overlapping workers, verified backups, monitoring of cycle reports, and successful autonomous discovery of a genuinely new app.
+- Simple Karpathy-style treemap-first layout with metric-proportional rectangle area, Android/iOS source-unit isolation, local market provenance, clear missing states, search and detail.
+- VN-specific labels and counts; **no global catalog count presented as VN candidate population**.
+- No silent Top-N cutoff affecting analytics or selection of chart/trend data. Avoid unrelated collector monitoring charts on the research homepage.
+- **Acceptance:** tested VN dataset export, meaningful source labels, area ratios, color segmentation and honest completeness statements.
 
-## Truthful status reporting
+## R6 — Unattended and safe Ubuntu operations (P0; PARTIAL)
 
-Use **MET**, **PARTIAL**, **NOT MET**, or **BLOCKED** separately for each criterion. The existing ~331k-ID local catalog is *not* an audited global census. Chart-only discovery can be a worthwhile interim step, but R1 remains unmet. A continuously looping process alone does not prove R2's daily freshness target.
+- Keep backups, SQLite WAL integrity and independent systemd services (monitor, discover, analytics/export, backup) working after reboots; **never run hourly collector and continuous monitor together**.
+- The installed `trendlab-monitor.service` and `trendlab-discover.service` may still explicitly pass `us,vn,gb,de,jp,in`; they **must be updated to VN** during deployment. CLI refuses non-VN market flags to prevent silent contamination.
+- **No destructive database reset by default.** The owner is willing to restart fresh if it materially improves performance, but deleting historical rows does not improve provider request throughput; any optional archive/reset requires a verified restorable backup and explicit, justified procedure.
+- **Acceptance:** tested install/rollout, only VN requests in logs, safe backout procedure, existing backup/analytics timers preserved.
 
-## Immediate execution priorities
+## Priority and truthful status
 
-1. Make basic Top-Chart discovery run unattended, with coverage and scope clearly labeled. This is **only a supplemental discovery layer**.
-2. Verify and integrate a continuously refreshed licensed catalog data source; add identity/provenance and daily-change tracking. Investigate alternatives if no comprehensive source exists.
-3. Measure actual collection capacity and country-specific availability before scaling. Fix one-country assumptions and high false-delist rates.
-4. Verify data integrity; then backtest models and refine treemap/UI.
+1. Deploy VN-only scheduler + systemd market overrides and start VN chart sweep safely.
+2. Measure useful VN coverage, first observations, error types, stable response latency and refresh capacity.
+3. Improve market discovery beyond Top-Free Education charts without claiming complete VN coverage.
+4. Validate source metadata/market definitions; build a VN chart-rank momentum model and backtest growth algorithms.
+5. Continue improving drilldown/zoom when many true linear-area tiles are tiny.
 
-This file supersedes optimistic language elsewhere in the repository when statements conflict.
+Report **MET / PARTIAL / NOT MET** per requirement. Never confuse a foreign app's presence in the global candidate catalog with availability in Vietnam.

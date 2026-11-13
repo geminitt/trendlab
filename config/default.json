@@ -8,29 +8,30 @@
     "educationGenreIdIos": 6017,
     "educationCategoryAndroid": "EDUCATION",
     "surveyedStorefronts": [
-      "us",
-      "vn",
-      "gb",
-      "de",
-      "in",
-      "jp"
+      "vn"
     ],
-    "appgoblinDataUrl": "https://github.com/appgoblin-dev/appgoblin-data"
+    "appgoblinDataUrl": "https://github.com/appgoblin-dev/appgoblin-data",
+    "researchMarket": "vn"
   },
   "collector": {
     "android": {
       "requestDelayMs": 1500,
       "randomJitterMs": 500,
       "maxConsecutiveErrors": 5,
-      "refreshHours": 24
+      "refreshHours": 24,
+      "country": "vn",
+      "language": "vi"
     },
     "ios": {
       "lookupBatchSize": 50,
       "requestDelayMs": 3500,
       "randomJitterMs": 500,
       "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 TrendLab/1.0",
-      "refreshHours": 24
-    }
+      "refreshHours": 24,
+      "country": "vn"
+    },
+    "marketExplorationShare": 0.2,
+    "regionNotFoundRetryHours": 168
   },
   "analytics": {
     "windows": [

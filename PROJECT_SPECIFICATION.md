@@ -1,3 +1,5 @@
+> **CẬP NHẬT PHẠM VI BẮT BUỘC — 13/11/2026:** Chủ dự án đã chuyển TrendLab sang nghiên cứu Education tại **thị trường Việt Nam (VN storefront)**. Các mục toàn cầu, 30+ storefront, tier quốc gia và tiêu chí bao phủ toàn cầu bên dưới là **thiết kế lịch sử, không còn là yêu cầu hiện hành**. Ưu tiên nội dung tại [docs/REQUIREMENTS_ACCEPTANCE.md](docs/REQUIREMENTS_ACCEPTANCE.md) và [docs/VIETNAM_DEPLOYMENT.md](docs/VIETNAM_DEPLOYMENT.md) nếu có mâu thuẫn. Không xóa SQLite chỉ để tăng thông lượng.
+
 # ĐẶC TẢ DỰ ÁN HỆ THỐNG PHÁT HIỆN XU HƯỚNG ỨNG DỤNG GIÁO DỤC TOÀN CẦU
 ## (GLOBAL EDUCATION APP TREND DISCOVERY SYSTEM)
 
@@ -89,7 +91,7 @@ graph LR
 
 Tất cả các thành viên phát triển và coding agent bắt buộc phải tuân thủ 13 điều khoản nền tảng đã được chốt:
 
-1. `[CHỐT]` **Thị trường toàn cầu:** Hệ thống mở rộng phạm vi theo dõi toàn cầu, không còn giới hạn ở Việt Nam hay bất kỳ quốc gia đơn lẻ nào.
+1. `[CHỐT — CẬP NHẬT 2026-11]` **Thị trường Việt Nam:** Chỉ khảo sát ứng dụng Education khả dụng trong storefront VN của hai nền tảng. Catalog toàn cầu cũ chỉ là nguồn ID tiềm năng; không được xem là mẫu số độ phủ VN.
 2. `[CHỐT]` **Đa nền tảng:** Hỗ trợ đồng thời cả hai nền tảng Android (Google Play) và iOS (Apple App Store).
 3. `[CHỐT]` **Đúng danh mục chính thức:** Chỉ thu thập và nghiên cứu các ứng dụng được phân loại chính thức vào danh mục Education (hoặc danh mục con tương đương) trên từng cửa hàng.
 4. `[CHỐT]` **Cửa sổ thời gian linh hoạt:** Mọi chỉ số xu hướng phải có khả năng tính toán trên các khoảng thời gian tùy biến do người dùng thiết lập ($T_1 \to T_2$).
@@ -482,7 +484,7 @@ graph TD
 Tránh hoàn toàn các hiểu lầm thị giác bằng định nghĩa minh bạch:
 - **Diện tích hình chữ nhật (Tile Area):**
   - **Quy tắc bắt buộc (cập nhật 2026-11): tuyến tính theo giá trị DƯƠNG của phép đo đang chọn**, không dùng logarit, căn bậc hai hoặc ngưỡng diện tích tối thiểu giả để làm ô đồng đều.
-  - *Observed Scale*: Android = bộ đếm công khai `maxInstalls` chưa xác minh ngữ nghĩa; iOS = số rating US storefront. Không gộp hai đơn vị khác nhau trong cùng treemap.
+  - *Observed Scale*: Android = bộ đếm công khai `maxInstalls` chưa xác minh ngữ nghĩa; iOS = số rating VN storefront. Không gộp hai đơn vị khác nhau trong cùng treemap.
   - *Observed Delta*: độ tăng bộ đếm nguồn thực tế của khoảng thời gian, **không dùng log10(delta) của điểm Model A**.
   - *Breakout / Sustained Growth*: điểm mô hình thử nghiệm; chỉ ánh xạ tuyến tính chính điểm đó, không suy diễn là lượt tải hoặc thị phần.
   - *Rating Velocity*: số rating/ngày khi có đủ chuỗi dữ liệu.

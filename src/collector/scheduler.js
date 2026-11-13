@@ -2,6 +2,7 @@ const Repository = require('../storage/repository');
 const AndroidCollector = require('./android_collector');
 const IosCollector = require('./ios_collector');
 const StoreSweeper = require('../catalog/store_sweeper');
+const config = require('../../config/default.json');
 
 class CollectionScheduler {
   constructor(repo = null) {
@@ -11,13 +12,14 @@ class CollectionScheduler {
     this.sweeper = new StoreSweeper(this.repo);
   }
 
-  async runFullCycle({ androidLimit = 200, iosLimit = 200, storefront = 'us' } = {}) {
+  async runFullCycle({ androidLimit = 200, iosLimit = 200, storefront = config.catalog.researchMarket || 'vn' } = {}) {
     console.log('=== STARTING TRENDLAB FULL COLLECTION CYCLE ===');
     const auditId = this.repo.startAuditLog('FULL_COLLECTION_CYCLE');
 
     let totalAttempted = 0;
     let totalSucceeded = 0;
     let totalFailed = 0;
+    let totalSystemicFailures = 0;
 
     try {
       // Catalog must be imported explicitly via import-catalog or sweep.
@@ -28,16 +30,18 @@ class CollectionScheduler {
       }
 
       // 2. Run Android Collection
-      const andRes = await this.androidCollector.collectAll({ limit: androidLimit });
+      const andRes = await this.androidCollector.collectAll({ limit: androidLimit, country: storefront });
       totalAttempted += andRes.attempted;
       totalSucceeded += andRes.succeeded;
       totalFailed += andRes.failed;
+      totalSystemicFailures += andRes.systemicFailures || 0;
 
       // 3. Run iOS Collection
       const iosRes = await this.iosCollector.collectAll({ limit: iosLimit, storefront });
       totalAttempted += iosRes.attempted;
       totalSucceeded += iosRes.succeeded;
       totalFailed += iosRes.failed;
+      totalSystemicFailures += iosRes.systemicFailures || 0;
 
       this.repo.finishAuditLog(auditId, {
         status: totalFailed > 0 ? 'PARTIAL' : 'SUCCESS',
@@ -47,7 +51,8 @@ class CollectionScheduler {
       });
 
       console.log('=== FULL COLLECTION CYCLE COMPLETED ===\n');
-      return { status: totalFailed > 0 ? 'PARTIAL' : 'SUCCESS', totalAttempted, totalSucceeded, totalFailed };
+      return { status: totalFailed > 0 ? 'PARTIAL' : 'SUCCESS',
+        totalAttempted, totalSucceeded, totalFailed, totalSystemicFailures };
     } catch (err) {
       console.error('[Scheduler] Fatal error during collection cycle:', err);
       this.repo.finishAuditLog(auditId, {

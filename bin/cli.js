@@ -13,6 +13,7 @@ const DerivedMetricsCalculator = require('../src/analytics/derived_metrics');
 const TrendScoringEngine = require('../src/analytics/trend_models');
 const BacktestingHarness = require('../src/validation/backtesting');
 const SiteDataBuilder = require('../src/export/build_site_data');
+const config = require('../config/default.json');
 
 const command = process.argv[2] || 'help';
 
@@ -29,6 +30,18 @@ function positiveIntFlag(name, fallback) {
   const value = Number(flag(name, String(fallback)));
   if (!Number.isSafeInteger(value) || value < 1) throw new RangeError('--' + name + ' must be a positive integer');
   return value;
+}
+
+// Fail closed if an old systemd unit still requests the former global countries.
+// Do not quietly keep collecting US, JP, etc. under a Vietnam dashboard.
+function assertResearchMarkets(storefronts) {
+  const market = config.catalog.researchMarket || 'vn';
+  if (!Array.isArray(storefronts) || !storefronts.length ||
+      storefronts.some(sf => sf !== market)) {
+    throw new Error('TrendLab is configured for Vietnam (' + market +
+      ') only. Update the installed systemd ExecStart to --storefronts ' + market +
+      ' or --storefront ' + market + '.');
+  }
 }
 
 async function main() {
@@ -71,6 +84,7 @@ async function main() {
       if (!storefronts.length || storefronts.some(s => !/^[a-z]{2}$/.test(s))) {
         throw new Error('Invalid --storefronts: expected comma-separated two-letter country codes');
       }
+      assertResearchMarkets(storefronts);
       await sweeper.sweepAppleEducationCharts(storefronts);
       await sweeper.sweepGooglePlayEducationCharts(storefronts);
       break;
@@ -79,10 +93,12 @@ async function main() {
     case 'collect': {
       console.log('--- COMMAND: RUN COLLECTION ---');
       const scheduler = new CollectionScheduler(repo);
+      const storefront = flag('storefront', config.catalog.researchMarket || 'vn');
+      assertResearchMarkets([storefront]);
       await scheduler.runFullCycle({
         androidLimit: positiveIntFlag('android-limit', 200),
         iosLimit: positiveIntFlag('ios-limit', 200),
-        storefront: flag('storefront', 'us')
+        storefront
       });
       break;
     }
@@ -92,7 +108,8 @@ async function main() {
       const worker = new ContinuousCollector({ scheduler: new CollectionScheduler(repo) });
       process.on('SIGTERM', () => worker.stop());
       process.on('SIGINT', () => worker.stop());
-      const storefronts = flag('storefronts', 'us').split(',').map(x => x.trim().toLowerCase());
+      const storefronts = flag('storefronts', config.catalog.surveyedStorefronts.join(',')).split(',').map(x => x.trim().toLowerCase());
+      assertResearchMarkets(storefronts);
       await worker.run({
         androidLimit: positiveIntFlag('android-limit', 100),
         iosLimit: positiveIntFlag('ios-limit', 100),
@@ -130,11 +147,12 @@ async function main() {
       console.log('   TRENDLAB: FULL END-TO-END RESEARCH PIPELINE      ');
       console.log('====================================================');
       
+      assertResearchMarkets([flag('storefront', config.catalog.researchMarket || 'vn')]);
       const scheduler = new CollectionScheduler(repo);
       await scheduler.runFullCycle({
         androidLimit: positiveIntFlag('android-limit', 200),
         iosLimit: positiveIntFlag('ios-limit', 200),
-        storefront: flag('storefront', 'us')
+        storefront: flag('storefront', config.catalog.researchMarket || 'vn')
       });
 
       const calculator = new DerivedMetricsCalculator(repo);
@@ -207,9 +225,9 @@ Commands:
   import-catalog --file PATH [--max N]   Import AppGoblin TSV / TSV.XZ catalog
   coverage                          Report local catalog coverage and freshness
   seed --curated                    Optional small curated demo catalog (not market coverage)
-  sweep [--storefronts us,gb,jp]      Discover via charts (Top-K only)
-  collect [--android-limit 200 --ios-limit 200 --storefront us]  Run one bounded collection cycle
-  collect-loop [--android-limit 100 --ios-limit 100 --storefronts us,vn,jp --pause-seconds 30] Continuous mode
+  sweep [--storefronts vn]      Discover via charts (Top-K only)
+  collect [--android-limit 200 --ios-limit 200 --storefront vn]  Run one bounded collection cycle
+  collect-loop [--android-limit 100 --ios-limit 100 --storefronts vn --pause-seconds 30] Continuous mode
   analyze    Calculate derived metrics & trend scores
   backtest   Run model tournament & walk-forward validation
   export     Export site data artifact (data.json)

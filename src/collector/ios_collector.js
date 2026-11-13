@@ -29,7 +29,7 @@ class IosCollector {
     this.repo = repo || new Repository();
   }
 
-  async collectBatch(apps, storefront = 'us') {
+  async collectBatch(apps, storefront = config.collector.ios.country || 'vn') {
     if (!apps || apps.length === 0) return { succeeded: 0, failed: 0 };
 
     const ids = apps.map(a => a.native_store_id).join(',');
@@ -60,7 +60,7 @@ class IosCollector {
             this.repo.recordCollectionAttempt({
               platformAppId: app.id, storefront, succeeded: false,
               error: 'NOT_EDUCATION',
-              retryHours: 24
+              retryHours: 720, maxRetryHours: 720
             });
             continue;
           }
@@ -109,13 +109,15 @@ class IosCollector {
           failed++;
           this.repo.recordCollectionAttempt({
             platformAppId: app.id, storefront, succeeded: false,
-            error: 'NOT_FOUND_IN_STOREFRONT'
+            error: 'NOT_FOUND_IN_STOREFRONT',
+            retryHours: config.collector.regionNotFoundRetryHours ?? 168,
+            maxRetryHours: 720
           });
         }
       }
 
       console.log(`  [IosCollector] Batch lookup ${apps.length} apps -> ${succeeded} updated, ${failed} missing (${Date.now() - t0}ms)`);
-      return { succeeded, failed };
+      return { succeeded, failed, systemicFailures: 0 };
     } catch (err) {
       console.error(`  [IosCollector] Batch failed:`, err.message);
       for (const app of apps) {
@@ -123,18 +125,22 @@ class IosCollector {
           platformAppId: app.id, storefront, succeeded: false, error: err.message
         });
       }
-      return { succeeded: 0, failed: apps.length, error: err.message };
+      return { succeeded: 0, failed: apps.length, systemicFailures: apps.length, error: err.message };
     }
   }
 
-  async collectAll({ limit = 200, storefront = 'us' } = {}) {
-    const apps = this.repo.getDuePlatformApps({ platform: 'ios', storefront, limit });
+  async collectAll({ limit = 200, storefront = config.collector.ios.country || 'vn' } = {}) {
+    const apps = storefront === (config.catalog.researchMarket || 'vn')
+      ? this.repo.getDueMarketApps({ platform: 'ios', storefront, limit,
+        explorationShare: config.collector.marketExplorationShare ?? 0.2 })
+      : this.repo.getDuePlatformApps({ platform: 'ios', storefront, limit });
     console.log(`[IosCollector] Starting batch collection for ${apps.length} iOS apps (Storefront: ${storefront.toUpperCase()})...`);
 
     const batchSize = config.collector.ios.lookupBatchSize || 50;
     let totalSucceeded = 0;
     let totalFailed = 0;
     let attempted = 0;
+    let systemicFailures = 0;
 
     for (let i = 0; i < apps.length; i += batchSize) {
       const chunk = apps.slice(i, i + batchSize);
@@ -142,6 +148,7 @@ class IosCollector {
       attempted += chunk.length;
       totalSucceeded += res.succeeded;
       totalFailed += res.failed;
+      systemicFailures += res.systemicFailures || 0;
       if (/(?:429|rate.?limit|too many requests)/i.test(String(res.error || ''))) {
         console.warn('[IosCollector] Halting batch after rate-limit response.');
         break;
@@ -156,7 +163,7 @@ class IosCollector {
     }
 
     console.log(`[IosCollector] Finished: ${totalSucceeded} succeeded, ${totalFailed} failed.`);
-    return { attempted, succeeded: totalSucceeded, failed: totalFailed };
+    return { attempted, succeeded: totalSucceeded, failed: totalFailed, systemicFailures };
   }
 }
 

@@ -45,7 +45,7 @@ test('analyze skips the catalog and evaluates only apps with 3 observed samples'
         repo.recordObservedMetrics({
           platformAppId: appId,
           observedAt: new Date(now.getTime() - (values.length - 1 - i) * 3 * 86400000).toISOString(),
-          installCounter: values[i]
+          installCounter: values[i], storefront: 'vn'
         });
       }
     }
@@ -87,7 +87,7 @@ test('export includes all observed apps beyond 1000 without exporting unobserved
       const insertObserved = db.prepare(`
         INSERT INTO observed_metrics
           (id, platform_app_id, observed_at, observed_install_counter, storefront)
-        VALUES (?, ?, '2026-11-12T12:00:00.000Z', ?, 'global')
+        VALUES (?, ?, '2026-11-12T12:00:00.000Z', ?, 'vn')
       `);
       for (let i = 0; i < 1002; i++) {
         insertObserved.run('metric-' + i, 'id-' + i, i === 0 ? null : i);
@@ -100,7 +100,8 @@ test('export includes all observed apps beyond 1000 without exporting unobserved
     const output = path.join(temp, 'data.json');
     new SiteDataBuilder(repo).build(output);
     const payload = JSON.parse(fs.readFileSync(output, 'utf8'));
-    assert.equal(payload.meta.catalogApps, 1042);
+    assert.equal(payload.meta.catalogApps, 1002);
+    assert.equal(payload.meta.importedCandidateCatalogApps, 1042);
     assert.equal(payload.meta.totalApps, 1002);
     assert.equal(payload.apps.length, 1002);
     assert.equal(payload.meta.activity.daily.length, 30);
@@ -120,7 +121,7 @@ test('export includes all observed apps beyond 1000 without exporting unobserved
   }
 });
 
-test('iOS display scale selects US ratings, not a larger value from another storefront', () => {
+test('iOS VN market export selects VN ratings even if US/JP have larger values', () => {
   const { db, repo } = setup();
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'trendlab-export-us-'));
   try {
@@ -137,10 +138,18 @@ test('iOS display scale selects US ratings, not a larger value from another stor
       platformAppId: id, observedAt: t,
       storefront: 'jp', ratingCount: 9000
     });
+    repo.recordObservedMetrics({
+      platformAppId: id, observedAt: new Date(Date.parse(t) + 2000).toISOString(),
+      storefront: 'vn', ratingCount: 150
+    });
     const output = path.join(temp, 'site.json');
     new SiteDataBuilder(repo).build(output);
     const app = JSON.parse(fs.readFileSync(output, 'utf8')).apps[0];
-    assert.equal(app.rawVolume, 1000);
+    assert.equal(app.rawVolume, 150);
+    assert.equal(app.history.length, 1);
+    assert.equal(app.history[0].storefront, 'vn');
+    assert.equal(app.provenance, null);
+    assert.equal(JSON.parse(fs.readFileSync(output, 'utf8')).meta.researchMarket, 'vn');
     assert.equal(app.volumeMetric, 'observed_rating_count');
   } finally {
     db.close();

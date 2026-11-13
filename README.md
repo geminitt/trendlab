@@ -1,17 +1,17 @@
-# TrendLab: Global Education App Trend Discovery Platform
+# TrendLab: Vietnam Education App Trend Research
 
-> **Nền tảng nghiên cứu và khám phá xu hướng ứng dụng Giáo dục toàn cầu (Android & iOS).**  
+> **Nghiên cứu xu hướng ứng dụng Education khả dụng tại Việt Nam (Android & iOS).**  
 > Lấy cảm hứng trực quan hóa từ [karpathy.ai/jobs](https://karpathy.ai/jobs/).
 
 ---
 
 ## Project requirements (binding)
 
-Read [AGENTS.md](AGENTS.md) and [docs/REQUIREMENTS_ACCEPTANCE.md](docs/REQUIREMENTS_ACCEPTANCE.md) before changing architecture or declaring a feature complete. Automated supplemental Top-Chart discovery deployment: [docs/DISCOVERY_DEPLOYMENT.md](docs/DISCOVERY_DEPLOYMENT.md). **A chart sweep cannot discover all new Education apps and does not satisfy global catalog coverage.**
+Read [AGENTS.md](AGENTS.md), [docs/REQUIREMENTS_ACCEPTANCE.md](docs/REQUIREMENTS_ACCEPTANCE.md) and [docs/VIETNAM_DEPLOYMENT.md](docs/VIETNAM_DEPLOYMENT.md) before changes or deployment. The 2026-11-13 Vietnam scope supersedes former worldwide requirements. Automated supplemental Top-Chart discovery deployment: [docs/DISCOVERY_DEPLOYMENT.md](docs/DISCOVERY_DEPLOYMENT.md). **VN Top-K charts do not discover every new Education app; the imported global AppGoblin catalog is only a candidate pool, not a VN market denominator.**
 
 ## Data-first workflow (new collection pipeline)
 
-The repository is a **research prototype**, not a verified global census. AppGoblin
+The repository is a **research prototype**, not a verified census of Vietnamese Education storefronts. AppGoblin
 is a discovery catalog; a row in its dump is **not** a live install measurement.
 No source currently guarantees unlimited, real-time access to all Education apps.
 
@@ -26,7 +26,7 @@ No source currently guarantees unlimited, real-time access to all Education apps
    npm ci
    node bin/cli.js import-catalog --file /path/to/live_store_apps.tsv.xz
    node bin/cli.js coverage
-   node bin/cli.js collect --android-limit 200 --ios-limit 200 --storefront us
+   node bin/cli.js collect --android-limit 20 --ios-limit 25 --storefront vn
    node bin/cli.js coverage
    npm test
    ```
@@ -65,7 +65,7 @@ No source currently guarantees unlimited, real-time access to all Education apps
 
 **Remaining limits:** Scraper availability/rate limits must be validated on
 your machine. Apple Lookup is not unlimited; conservative pacing is configured.
-The dataset's completeness/refresh cadence is not guaranteed by TrendLab.
+The Vietnam storefront dataset's completeness/refresh cadence is not guaranteed by TrendLab.
 The `backtest` command currently reports model-overlap diagnostics **only**;
 it is not a predictive walk-forward backtest. The scoring formulas are
 provisional, pending real historical validation.
@@ -75,7 +75,7 @@ provisional, pending real historical validation.
 ## 1. Giới thiệu dự án
 
 **TrendLab** là một công cụ nghiên cứu cá nhân chuyên sâu nhằm:
-- Khám phá và theo dõi biến động động lượng của các ứng dụng thuộc danh mục **Education** chính thức trên **Google Play Store** và **Apple App Store** ở phạm vi **toàn cầu**.
+- Khám phá và theo dõi xu hướng ứng dụng thuộc danh mục **Education** được phân phối tại **Việt Nam** trên Google Play và Apple App Store, không giới hạn quốc tịch nhà phát triển.
 - Ưu tiên dữ liệu quan sát trực tiếp (`observed_install_counter`, `userRatingCount`, `rating_velocity`, `ranking momentum`), tuyệt đối **không** dùng số liệu ước tính giả lập (*estimated downloads*).
 - Tách biệt hai chế độ phát hiện xu hướng:
   - **Mode A (Emerging Breakouts):** Khám phá "ngọc thô" — các ứng dụng mới bùng nổ động lượng trước khi trở nên quá phổ biến.

@@ -10,8 +10,8 @@ class StoreSweeper {
     this.repo = repo || new Repository();
   }
 
-  // Sweep Apple App Store Top Free/Paid in Education (Genre 6017) across global storefronts
-  async sweepAppleEducationCharts(storefronts = ['us', 'vn', 'gb', 'de', 'jp', 'in', 'ca', 'au', 'fr']) {
+  // Sweep Vietnam App Store Education Top Free chart (Genre 6017) by default
+  async sweepAppleEducationCharts(storefronts = config.catalog.surveyedStorefronts) {
     console.log(`[StoreSweeper] Sweeping Apple App Store Education Charts across ${storefronts.length} storefronts...`);
     let totalDiscovered = 0;
 
@@ -63,7 +63,7 @@ class StoreSweeper {
   }
 
   // Sweep Google Play Top Free Education + Search Facets
-  async sweepGooglePlayEducationCharts(countries = config.catalog.surveyedStorefronts || ['us']) {
+  async sweepGooglePlayEducationCharts(countries = config.catalog.surveyedStorefronts || ['vn']) {
     console.log(`[StoreSweeper] Sweeping Google Play Education Apps...`);
     let totalDiscovered = 0;
 

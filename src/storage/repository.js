@@ -72,18 +72,30 @@ class Repository {
   // Reserve capacity for first observations AND for recurring observations.
   // Otherwise a large imported catalog starves refreshes indefinitely.
   getDuePlatformApps({ platform, storefront = 'global', limit = 100,
-                       now = new Date().toISOString(), newShare = 0.5 } = {}) {
+                       now = new Date().toISOString(), newShare = 0.5,
+                       preferStorefront = null } = {}) {
     if (!['android', 'ios'].includes(platform)) throw new Error('Unknown platform');
     if (!Number.isSafeInteger(limit) || limit < 1) throw new RangeError('limit must be positive');
     if (!Number.isFinite(newShare) || newShare < 0 || newShare > 1) {
       throw new RangeError('newShare must be in [0, 1]');
     }
+    // In a single-market study, collect apps observed in that country's
+    // Education charts before exploring the unverified bulk catalog backlog.
+    // Use an indexed EXISTS check; do not drop or delete other catalog entries.
+    const preferred = preferStorefront ?
+      `CASE WHEN EXISTS (
+        SELECT 1 FROM observed_metrics m
+        WHERE m.platform_app_id = p.id AND m.storefront = ?
+          AND m.observed_rank IS NOT NULL
+      ) THEN 0 ELSE 1 END,` : '';
+    const newArgs = (max) => preferStorefront ?
+      [storefront, platform, preferStorefront, max] : [storefront, platform, max];
     const newlySeen = this.db.prepare(`
       SELECT p.* FROM platform_applications p
       LEFT JOIN collection_state c
         ON c.platform_app_id = p.id AND c.storefront = ?
       WHERE p.platform = ? AND p.is_active = 1 AND c.last_attempted_at IS NULL
-      ORDER BY p.first_seen_at DESC, p.id ASC LIMIT ?
+      ORDER BY ${preferred} p.first_seen_at DESC, p.id ASC LIMIT ?
     `);
     const revisits = this.db.prepare(`
       SELECT p.* FROM platform_applications p
@@ -96,14 +108,14 @@ class Repository {
     `);
     const newQuota = Math.ceil(limit * newShare);
     const oldQuota = limit - newQuota;
-    const fresh = newlySeen.all(storefront, platform, newQuota);
+    const fresh = newlySeen.all(...newArgs(newQuota));
     const recurring = revisits.all(storefront, platform, now, oldQuota);
     // Fill unused capacity from either pool without repeating an app.
     if (fresh.length < newQuota) {
       recurring.push(...revisits.all(storefront, platform, now, limit - fresh.length)
         .slice(recurring.length));
     } else if (recurring.length < oldQuota) {
-      fresh.push(...newlySeen.all(storefront, platform, limit - recurring.length)
+      fresh.push(...newlySeen.all(...newArgs(limit - recurring.length))
         .slice(fresh.length));
     }
     // Alternate so long-running collection proceeds fairly through both pools.
@@ -114,6 +126,67 @@ class Repository {
       if (selection.length >= limit) break;
     }
     return selection;
+  }
+
+  // Vietnam research scheduler: spend most API capacity on apps with verified
+  // VN chart/lookup evidence and a small fixed lane on never-tried catalog IDs.
+  // The global AppGoblin catalog is only a candidate pool, NOT a VN app census.
+  // Deliberately do not fill idle capacity with unbounded global probes.
+  getDueMarketApps({ platform, storefront = 'vn', limit = 100,
+                     explorationShare = 0.2, now = new Date().toISOString() } = {}) {
+    if (!['android', 'ios'].includes(platform)) throw new Error('Unknown platform');
+    if (!/^[a-z]{2}$/.test(storefront)) throw new Error('Invalid storefront');
+    if (!Number.isSafeInteger(limit) || limit < 1) throw new RangeError('Invalid limit');
+    if (!Number.isFinite(explorationShare) ||
+        explorationShare < 0 || explorationShare > 1) throw new RangeError('Invalid exploration share');
+
+    const exploreLimit = explorationShare === 0 ? 0 :
+      Math.max(1, Math.floor(limit * explorationShare));
+    const focusLimit = limit - exploreLimit;
+
+    const focused = focusLimit ? this.db.prepare(`
+      SELECT p.* FROM platform_applications p
+      JOIN (
+        SELECT DISTINCT platform_app_id
+        FROM observed_metrics
+        WHERE storefront = ?
+          AND (observed_rank IS NOT NULL
+            OR observed_install_counter IS NOT NULL
+            OR observed_rating_count IS NOT NULL)
+      ) vn ON vn.platform_app_id = p.id
+      LEFT JOIN collection_state c ON c.platform_app_id = p.id AND c.storefront = ?
+      WHERE p.is_active = 1 AND p.platform = ?
+        AND (c.last_attempted_at IS NULL OR c.next_due_at <= ?)
+      ORDER BY CASE WHEN c.last_attempted_at IS NULL THEN 0 ELSE 1 END,
+               c.next_due_at ASC, p.id ASC
+      LIMIT ?
+    `).all(storefront, storefront, platform, now, focusLimit) : [];
+
+    const exploratory = exploreLimit ? this.db.prepare(`
+      SELECT p.* FROM platform_applications p
+      LEFT JOIN collection_state c ON c.platform_app_id = p.id AND c.storefront = ?
+      WHERE p.platform = ? AND p.is_active = 1
+        AND c.last_attempted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM observed_metrics m
+          WHERE m.platform_app_id = p.id AND m.storefront = ?
+            AND (m.observed_rank IS NOT NULL
+              OR m.observed_install_counter IS NOT NULL
+              OR m.observed_rating_count IS NOT NULL)
+        )
+      ORDER BY p.first_seen_at DESC, p.id
+      LIMIT ?
+    `).all(storefront, platform, storefront, exploreLimit) : [];
+
+    // Alternate lanes to keep early progress visible while preserving VN
+    // chart evidence freshness. No double selection between the two lanes.
+    const result = [];
+    const max = Math.max(focused.length, exploratory.length);
+    for (let i = 0; i < max; i++) {
+      if (i < focused.length) result.push(focused[i]);
+      if (i < exploratory.length) result.push(exploratory[i]);
+    }
+    return result;
   }
 
   recordCollectionAttempt({
@@ -163,6 +236,34 @@ class Repository {
       WHERE p.is_active = 1
       GROUP BY p.platform ORDER BY p.platform
     `).all(new Date(Date.parse(now) - 24 * 3600000).toISOString(), now);
+    // VN-specific progress is independent of the historic imported worldwide catalog.
+    // Chart-only evidence is separately visible; it is not counted as numeric metrics.
+    const market = 'vn';
+    const marketSummary = this.db.prepare(`
+      SELECT p.platform,
+        COUNT(DISTINCT o.platform_app_id) AS market_candidates,
+        COUNT(DISTINCT CASE WHEN o.observed_install_counter IS NOT NULL
+          OR o.observed_rating_count IS NOT NULL THEN o.platform_app_id END)
+          AS apps_with_market_metrics,
+        COUNT(DISTINCT CASE WHEN o.observed_rank IS NOT NULL
+          THEN o.platform_app_id END) AS charted_market_apps
+      FROM platform_applications p
+      JOIN observed_metrics o ON o.platform_app_id = p.id AND o.storefront = ?
+      WHERE p.is_active = 1
+      GROUP BY p.platform ORDER BY p.platform
+    `).all(market);
+    const marketSuccess = this.db.prepare(`
+      SELECT p.platform, COUNT(*) AS successful_last_24h
+      FROM collection_state c
+      JOIN platform_applications p ON p.id = c.platform_app_id
+      WHERE c.storefront = ? AND p.is_active = 1
+        AND c.last_success_at >= ?
+      GROUP BY p.platform
+    `).all(market, new Date(Date.parse(now) - 24 * 3600000).toISOString());
+    const recentMarket = new Map(marketSuccess.map(r => [r.platform, r.successful_last_24h]));
+    for (const row of marketSummary) {
+      row.successful_last_24h = recentMarket.get(row.platform) || 0;
+    }
     const audit = this.db.prepare(`
       SELECT job_type, started_at, completed_at, status,
         items_attempted, items_succeeded, items_failed, error_summary
@@ -170,8 +271,10 @@ class Repository {
     `).all();
     return {
       generatedAt: now,
-      coverageMeaning: 'Counts only apps present in local catalog, not all global Education apps.',
+      researchMarket: market,
+      coverageMeaning: 'byPlatform is historical mixed-country local catalog coverage, NOT Vietnam coverage. marketByPlatform counts apps with VN chart/lookup evidence only; not a census of all VN Education apps.',
       byPlatform: summary,
+      marketByPlatform: marketSummary,
       recentJobs: audit
     };
   }

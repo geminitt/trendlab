@@ -1,5 +1,5 @@
 [Unit]
-Description=TrendLab Supplemental Global Education Top-Chart Discovery (not complete catalog)
+Description=TrendLab Vietnam Education Top-Chart Discovery (sampled, not complete catalog)
 Wants=network-online.target
 After=network-online.target
 
@@ -7,6 +7,6 @@ After=network-online.target
 Type=oneshot
 User=gemini
 WorkingDirectory=/home/gemini/trendlab
-ExecStart=/usr/bin/node /home/gemini/trendlab/bin/cli.js sweep --storefronts us,vn,gb,de,jp,in
+ExecStart=/usr/bin/node /home/gemini/trendlab/bin/cli.js sweep --storefronts vn
 TimeoutStartSec=30min
 NoNewPrivileges=true

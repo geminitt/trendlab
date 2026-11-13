@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const Repository = require('../storage/repository');
+const config = require('../../config/default.json');
 
 class SiteDataBuilder {
   constructor(repo = null) {
@@ -15,21 +16,32 @@ class SiteDataBuilder {
       fs.mkdirSync(targetDir, { recursive: true });
     }
 
-    // Export the complete observed subset, not the first 1,000 catalog entries.
-    // Unobserved catalog entries do not belong in a time-series visualization.
+    // Vietnam-market output is restricted to actual VN observed evidence
+    // (local Education top charts or successful VN storefront lookups).
+    // The imported global catalog remains intact in SQLite as a candidate pool,
+    // but it is NOT counted as a Vietnam-market population.
+    const market = config.catalog.researchMarket || 'vn';
     const apps = this.repo.db.prepare(`
-      SELECT p.*
-      FROM (
+      SELECT p.* FROM (
         SELECT platform_app_id, MAX(observed_at) AS last_observed_at
-        FROM observed_metrics GROUP BY platform_app_id
+        FROM observed_metrics WHERE storefront = ?
+        GROUP BY platform_app_id
       ) seen
       JOIN platform_applications p ON p.id = seen.platform_app_id
       WHERE p.is_active = 1
       ORDER BY seen.last_observed_at DESC, p.id
-    `).all();
+    `).all(market);
     const catalogSize = this.repo.db.prepare(
       'SELECT COUNT(*) AS count FROM platform_applications WHERE is_active = 1'
     ).get().count;
+    const measuredMarketApps = this.repo.db.prepare(`
+      SELECT COUNT(DISTINCT o.platform_app_id) AS count
+      FROM observed_metrics o
+      JOIN platform_applications p ON p.id = o.platform_app_id
+      WHERE o.storefront = ? AND p.is_active = 1
+        AND (o.observed_install_counter IS NOT NULL
+          OR o.observed_rating_count IS NOT NULL)
+    `).get(market).count;
     // Sparse, auditable aggregates for the dashboard. An observation row is
     // not a download, and an audit success is not a unique app.
     const now = new Date();
@@ -40,18 +52,19 @@ class SiteDataBuilder {
     const dailyRows = this.repo.db.prepare(`
       SELECT substr(observed_at, 1, 10) AS day, COUNT(*) AS observationRows,
              COUNT(DISTINCT platform_app_id) AS observedApps
-      FROM observed_metrics WHERE observed_at >= ?
+      FROM observed_metrics WHERE observed_at >= ? AND storefront = ?
       GROUP BY substr(observed_at, 1, 10)
-    `).all(start);
+    `).all(start, market);
     const firstSeenRows = this.repo.db.prepare(`
       SELECT substr(first_observed, 1, 10) AS day, COUNT(*) AS newlyObserved
       FROM (
         SELECT platform_app_id, MIN(observed_at) AS first_observed
-        FROM observed_metrics GROUP BY platform_app_id
+        FROM observed_metrics WHERE storefront = ?
+        GROUP BY platform_app_id
       )
       WHERE first_observed >= ?
       GROUP BY substr(first_observed, 1, 10)
-    `).all(start);
+    `).all(market, start);
     const auditRows = this.repo.db.prepare(`
       SELECT substr(completed_at, 1, 10) AS day,
              SUM(items_attempted) AS attempts,
@@ -66,7 +79,7 @@ class SiteDataBuilder {
     const firstMap = toMap(firstSeenRows);
     const auditMap = toMap(auditRows);
     const activity = {
-      source: 'observed_metrics and collection_audit_logs (SQLite); UTC calendar dates',
+      source: 'VN observed_metrics (market only); collection_audit_logs (historically mixed markets, not VN-specific); UTC dates',
       daily: days.map(date => ({
         date,
         observationRows: observedMap.get(date)?.observationRows || 0,
@@ -81,7 +94,8 @@ class SiteDataBuilder {
 
     for (const app of apps) {
       // 1. Get raw history for sparklines
-      const historyRows = this.repo.getMetricsSeries(app.id);
+      const historyRows = this.repo.getMetricsSeries(app.id)
+        .filter(row => row.storefront === market);
       const history = historyRows.map(r => ({
         t: r.observed_at,
         installs: r.observed_install_counter,
@@ -94,8 +108,14 @@ class SiteDataBuilder {
 
       // 2. Get latest snapshot for provenance
       const latestSnapshot = this.repo.db.prepare(
-        'SELECT observed_at, source_name, fetch_method, payload_sha256 FROM raw_snapshots WHERE platform_app_id = ? ORDER BY observed_at DESC LIMIT 1'
-      ).get(app.id);
+        `SELECT rs.observed_at, rs.source_name, rs.fetch_method, rs.payload_sha256
+         FROM raw_snapshots rs
+         WHERE rs.platform_app_id = ?
+           AND EXISTS (SELECT 1 FROM observed_metrics m
+             WHERE m.platform_app_id = rs.platform_app_id
+               AND m.observed_at = rs.observed_at AND m.storefront = ?)
+         ORDER BY rs.observed_at DESC LIMIT 1`
+      ).get(app.id, market);
 
       // 3. Get derived metrics across windows
       const derivedRows = this.repo.db.prepare(
@@ -147,9 +167,8 @@ class SiteDataBuilder {
           volumeMetric = 'observed_install_counter';
           break;
         }
-        // The visible iOS treemap is explicitly US rating counts; never
-        // silently choose a larger figure from a different storefront.
-        if (app.platform === 'ios' && row.storefront === 'us' &&
+        // iOS rating counts are VN-storefront-specific, never US/global.
+        if (app.platform === 'ios' && row.storefront === market &&
             Number.isFinite(row.observed_rating_count)) {
           rawVolume = row.observed_rating_count;
           volumeMetric = 'observed_rating_count';
@@ -187,10 +206,15 @@ class SiteDataBuilder {
 
     const payload = {
       meta: {
-        system: 'TrendLab Global Education Discovery',
+        system: 'TrendLab Vietnam Education App Research',
+        researchMarket: market,
+        marketScope: 'Only apps with observed VN storefront evidence; not a census of all Education apps available in Vietnam.',
+        importedCandidateCatalogApps: catalogSize,
+        marketCandidateApps: compiledApps.length,
+        marketMeasuredApps: measuredMarketApps,
         generatedAt: new Date().toISOString(),
         totalApps: compiledApps.length,
-        catalogApps: catalogSize,
+        catalogApps: compiledApps.length,
         scoredApps30d: compiledApps.filter(app => app.scores?.['30d'] &&
           Object.keys(app.scores['30d']).length > 0).length,
         platformCounts: {
@@ -198,14 +222,14 @@ class SiteDataBuilder {
           ios: compiledApps.filter(app => app.platform === 'ios').length
         },
         activity,
-        exportScope: 'Observed applications only; catalog entries without snapshots excluded.',
+        exportScope: 'VN storefront observations only, including VN Education chart ranks. Existing US/other-market metrics and global-only candidates are excluded.',
         windows: ['7d', '14d', '30d', '90d', 'all'],
         models: [
           { id: 'model_c_breakout', name: 'Emerging Breakouts (Mode A)' },
           { id: 'model_b_compounder', name: 'Sustained Growth (Mode B)' },
           { id: 'model_a_growth', name: 'Absolute Volume (Model A)' }
         ],
-        areaDimensionDefinition: 'Tile area linear in positive selected value: observed platform source count, raw counter increase, provisional model score, or ratings/day. Zero, negative and missing have no positive area. Android and iOS units are separate; NOT market share.',
+        areaDimensionDefinition: 'VN storefront evidence only. Linear area by selected positive metric; Android public maxInstalls is not VN-specific installs, iOS VN user ratings are storefront-specific. No cross-platform comparison.',
         colorDimensionDefinition: 'Relative percentile per platform for available signals; gray = insufficient evidence. Scores are provisional.'
       },
       apps: compiledApps
