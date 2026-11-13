@@ -1,6 +1,7 @@
 'use strict';
 
 const CollectionScheduler = require('./scheduler');
+const config = require('../../config/default.json');
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -17,7 +18,7 @@ class ContinuousCollector {
   async run({
     androidLimit = 100,
     iosLimit = 100,
-    storefronts = ['us'],
+    storefronts = config.catalog.surveyedStorefronts,
     pauseSeconds = 30,
     errorPauseSeconds = 300,
     maxCycles = Infinity
