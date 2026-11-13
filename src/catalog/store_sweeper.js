@@ -4,6 +4,7 @@ const storeRaw = require('app-store-scraper');
 const store = storeRaw.default || storeRaw;
 const Repository = require('../storage/repository');
 const config = require('../../config/default.json');
+const { audit } = require('../observability/audit');
 
 class StoreSweeper {
   constructor(repo = null) {
@@ -14,9 +15,10 @@ class StoreSweeper {
   async sweepAppleEducationCharts(storefronts = config.catalog.surveyedStorefronts) {
     console.log(`[StoreSweeper] Sweeping Apple App Store Education Charts across ${storefronts.length} storefronts...`);
     let totalDiscovered = 0;
-
+    audit('discovery.sweep_started', { platform: 'ios', storefronts, chart: 'TOP_FREE_EDUCATION', limit: 100 });
     for (const sf of storefronts) {
       try {
+        const started = Date.now();
         console.log(`  Querying Apple Top Free Education for storefront [${sf.toUpperCase()}]...`);
         const apps = await store.list({
           category: config.catalog.educationGenreIdIos || 6017,
@@ -26,6 +28,10 @@ class StoreSweeper {
         });
 
         console.log(`    -> Received ${apps.length} apps from [${sf.toUpperCase()}].`);
+        audit('discovery.chart_response', {
+          platform: 'ios', storefront: sf, received: apps.length,
+          source: 'app-store-scraper', elapsed_ms: Date.now() - started
+        });
         // A single iOS app identity is shared by storefronts. Store chart
         // observations separately so that its country-specific rank is retained.
         const observedAt = new Date().toISOString();
@@ -49,16 +55,27 @@ class StoreSweeper {
             flags: JSON.stringify(['TOP_CHART_LIMITED_DISCOVERY'])
           });
           totalDiscovered++;
+          audit('discovery.chart_entry', {
+            platform: 'ios', storefront: sf, platform_app_id: platformAppId,
+            native_store_id: String(item.id), title: item.title,
+            chart: 'TOP_FREE_EDUCATION', rank: index + 1, observed_at: observedAt
+          });
         }
 
         // Slight pause between storefront queries
         await new Promise(r => setTimeout(r, 600));
       } catch (err) {
+        audit('discovery.source_error', {
+          platform: 'ios', storefront: sf, source: 'app-store-scraper', error: err
+        });
         console.warn(`    Warning on storefront ${sf}:`, err.message);
       }
     }
 
     console.log(`[StoreSweeper] Apple sweep completed: ${totalDiscovered} total app-storefront mappings registered.`);
+    audit('discovery.sweep_finished', {
+      platform: 'ios', storefronts, chart: 'TOP_FREE_EDUCATION', stored: totalDiscovered
+    });
     return totalDiscovered;
   }
 
@@ -66,10 +83,14 @@ class StoreSweeper {
   async sweepGooglePlayEducationCharts(countries = config.catalog.surveyedStorefronts || ['vn']) {
     console.log(`[StoreSweeper] Sweeping Google Play Education Apps...`);
     let totalDiscovered = 0;
+    audit('discovery.sweep_started', {
+      platform: 'android', storefronts: countries, chart: 'TOP_FREE_EDUCATION', limit: 100
+    });
 
     // Top chart discovery is capped and country-specific; it is never market coverage.
     for (const country of countries) {
       try {
+        const started = Date.now();
         const apps = await gplay.list({
           category: gplay.category.EDUCATION,
           collection: gplay.collection.TOP_FREE,
@@ -77,6 +98,10 @@ class StoreSweeper {
           country
         });
         console.log(`  Google Play Top Free Education [${country}]: ${apps.length} rows`);
+        audit('discovery.chart_response', {
+          platform: 'android', storefront: country, received: apps.length,
+          source: 'google-play-scraper', elapsed_ms: Date.now() - started
+        });
         const observedAt = new Date().toISOString();
         for (const [index, item] of apps.entries()) {
           if (!item.appId || !item.title) continue;
@@ -99,8 +124,16 @@ class StoreSweeper {
             flags: JSON.stringify(['TOP_CHART_LIMITED_DISCOVERY'])
           });
           totalDiscovered++;
+          audit('discovery.chart_entry', {
+            platform: 'android', storefront: country, platform_app_id: platformAppId,
+            native_store_id: String(item.appId), title: item.title,
+            chart: 'TOP_FREE_EDUCATION', rank: index + 1, observed_at: observedAt
+          });
         }
       } catch (err) {
+        audit('discovery.source_error', {
+          platform: 'android', storefront: country, source: 'google-play-scraper', error: err
+        });
         console.warn(`  Google Play chart failed [${country}]:`, err.message);
       }
       await new Promise(r => setTimeout(r, 1200));
@@ -110,6 +143,9 @@ class StoreSweeper {
     // cannot represent the worldwide official Education category.
 
     console.log(`[StoreSweeper] Google Play sweep completed: ${totalDiscovered} apps registered.`);
+    audit('discovery.sweep_finished', {
+      platform: 'android', storefronts: countries, chart: 'TOP_FREE_EDUCATION', stored: totalDiscovered
+    });
     return totalDiscovered;
   }
 }
