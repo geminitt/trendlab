@@ -119,11 +119,13 @@ async function main() {
       process.on('SIGINT', () => worker.stop());
       const storefronts = flag('storefronts', config.catalog.surveyedStorefronts.join(',')).split(',').map(x => x.trim().toLowerCase());
       assertResearchMarkets(storefronts);
+      const pauseSeconds = positiveIntFlag('pause-seconds', 30);
+      const errorPauseSeconds = positiveIntFlag('error-pause-seconds', Math.max(300, pauseSeconds));
+      const maxCycles = flag('max-cycles') === null ? Infinity : positiveIntFlag('max-cycles', 1);
       await worker.run({
         androidLimit: positiveIntFlag('android-limit', 100),
         iosLimit: positiveIntFlag('ios-limit', 100),
-        storefronts,
-        pauseSeconds: positiveIntFlag('pause-seconds', 30)
+        storefronts, pauseSeconds, errorPauseSeconds, maxCycles
       });
       break;
     }

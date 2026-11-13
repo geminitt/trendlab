@@ -1,14 +1,14 @@
 const gplayRaw = require('google-play-scraper');
 const gplay = gplayRaw.default || gplayRaw;
-const storeRaw = require('app-store-scraper');
-const store = storeRaw.default || storeRaw;
+const { getAppleEducationTopFree } = require('./apple_education_feed');
 const Repository = require('../storage/repository');
 const config = require('../../config/default.json');
 const { audit } = require('../observability/audit');
 
 class StoreSweeper {
-  constructor(repo = null) {
+  constructor(repo = null, { fetchAppleChart = getAppleEducationTopFree } = {}) {
     this.repo = repo || new Repository();
+    this.fetchAppleChart = fetchAppleChart;
   }
 
   // Sweep Vietnam App Store Education Top Free chart (Genre 6017) by default
@@ -20,17 +20,12 @@ class StoreSweeper {
       try {
         const started = Date.now();
         console.log(`  Querying Apple Top Free Education for storefront [${sf.toUpperCase()}]...`);
-        const apps = await store.list({
-          category: config.catalog.educationGenreIdIos || 6017,
-          collection: store.collection.TOP_FREE_IOS || store.collection.TOP_FREE,
-          num: 100, // fetch up to 100 per storefront
-          country: sf
-        });
+        const apps = await this.fetchAppleChart(sf, config.catalog.educationGenreIdIos || 6017, 100);
 
         console.log(`    -> Received ${apps.length} apps from [${sf.toUpperCase()}].`);
         audit('discovery.chart_response', {
           platform: 'ios', storefront: sf, received: apps.length,
-          source: 'app-store-scraper', elapsed_ms: Date.now() - started
+          source: 'apple-itunes-rss', elapsed_ms: Date.now() - started
         });
         // A single iOS app identity is shared by storefronts. Store chart
         // observations separately so that its country-specific rank is retained.
@@ -66,7 +61,7 @@ class StoreSweeper {
         await new Promise(r => setTimeout(r, 600));
       } catch (err) {
         audit('discovery.source_error', {
-          platform: 'ios', storefront: sf, source: 'app-store-scraper', error: err
+          platform: 'ios', storefront: sf, source: 'apple-itunes-rss', error: err
         });
         console.warn(`    Warning on storefront ${sf}:`, err.message);
       }
