@@ -75,7 +75,7 @@ snapshot() {
   cp config/default.json "$target/config-before-reset.json"
   git rev-parse HEAD >"$target/git-revision.txt" 2>&1 || true
   echo "$STAMP" >"$target/created-utc.txt"
-  find logs -maxdepth 1 -type f -name '*.jsonl' -exec cp -t "$target/" {} + 2>/dev/null || true
+  # Existing JSONL files move into the archive only AFTER the backup passes.
 
   local integrity
   integrity="$(sqlite3 "$DB" 'PRAGMA integrity_check;')"
@@ -109,6 +109,16 @@ if [ -e "$ARCHIVE" ]; then
 fi
 # Another archive is still a full retained copy even after the active DB is reset.
 snapshot "$ARCHIVE"
+
+# Keep previous run logs for forensic work, but start new daily JSONL cleanly.
+if [ -d "$ROOT/logs" ]; then
+  mkdir -p "$ARCHIVE/previous-jsonl"
+  shopt -s nullglob
+  for old_log in "$ROOT"/logs/events-*.jsonl; do
+    mv "$old_log" "$ARCHIVE/previous-jsonl/"
+  done
+  shopt -u nullglob
+fi
 
 # Move old database and WAL companions only AFTER backing up and checking
 # quiescence. No recursive deletion, unsafe SQLite deletion or automatic catalog import.
