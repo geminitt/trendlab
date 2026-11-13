@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { getDb } = require('./db');
+const { audit } = require('../observability/audit');
 
 class Repository {
   constructor(db = null) {
@@ -216,6 +217,12 @@ class Repository {
         last_error = excluded.last_error
     `).run(platformAppId, storefront, observedAt, succeeded ? observedAt : null,
       nextDue, failures, succeeded ? null : String(error || 'UNKNOWN').slice(0, 1000));
+    audit('collection.attempt', {
+      platform_app_id: platformAppId, storefront, succeeded: !!succeeded,
+      error_code: succeeded ? null : String(error || 'UNKNOWN'),
+      consecutive_failures: failures, backoff_hours: backoff,
+      next_due_at: nextDue, observed_at: observedAt
+    });
   }
 
   getCoverageReport({ now = new Date().toISOString() } = {}) {
@@ -297,7 +304,11 @@ class Repository {
         id, platform_app_id, observed_at, source_updated_at, source_name, fetch_method, payload_sha256, raw_payload_json
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, platformAppId, observedAt, sourceUpdatedAt, sourceName, fetchMethod, hash, payloadStr);
-
+    audit('snapshot.saved', {
+      snapshot_id: id, platform_app_id: platformAppId, observed_at: observedAt,
+      source_updated_at: sourceUpdatedAt, source_name: sourceName,
+      fetch_method: fetchMethod, sha256: hash, payload_bytes: Buffer.byteLength(payloadStr)
+    });
     return id;
   }
 
@@ -320,6 +331,12 @@ class Repository {
         id, platform_app_id, observed_at, observed_install_counter, observed_rating_count, observed_review_count, observed_rating_score, observed_rank, rank_chart_type, storefront, data_quality_flags
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, platformAppId, observedAt, installCounter, ratingCount, reviewCount, ratingScore, rank, rankChartType, storefront, flags);
+    audit('observation.saved', {
+      observation_id: id, platform_app_id: platformAppId, observed_at: observedAt,
+      storefront, install_counter: installCounter, rating_count: ratingCount,
+      review_count: reviewCount, rating_score: ratingScore,
+      rank, rank_chart_type: rankChartType, quality_flags: flags
+    });
     return id;
   }
 
@@ -362,6 +379,15 @@ class Repository {
         .map(value => value === null || value === undefined ? null : Number(value)),
       computedAt
     );
+    audit('analytics.window_saved', {
+      metric_id: id, platform_app_id: platformAppId, window_type: windowType,
+      window_start: windowStart, window_end: windowEnd,
+      delta_installs: deltaInstalls, delta_ratings: deltaRatings,
+      rating_velocity_daily: ratingVelocityDaily, relative_growth: relativeGrowth,
+      dampened_growth: dampenedGrowth, momentum: momentumScore,
+      acceleration: accelerationScore, persistence: persistenceRatio,
+      completeness, computed_at: computedAt
+    });
     return id;
   }
 
