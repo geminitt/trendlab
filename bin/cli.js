@@ -82,7 +82,7 @@ async function main() {
       await scheduler.runFullCycle({
         androidLimit: positiveIntFlag('android-limit', 200),
         iosLimit: positiveIntFlag('ios-limit', 200),
-        storefront: flag('storefront', 'us')
+        storefront: flag('storefront', require('../config/default.json').catalog.researchMarket || 'vn')
       });
       break;
     }
@@ -92,7 +92,7 @@ async function main() {
       const worker = new ContinuousCollector({ scheduler: new CollectionScheduler(repo) });
       process.on('SIGTERM', () => worker.stop());
       process.on('SIGINT', () => worker.stop());
-      const storefronts = flag('storefronts', 'us').split(',').map(x => x.trim().toLowerCase());
+      const storefronts = flag('storefronts', require('../config/default.json').catalog.surveyedStorefronts.join(',')).split(',').map(x => x.trim().toLowerCase());
       await worker.run({
         androidLimit: positiveIntFlag('android-limit', 100),
         iosLimit: positiveIntFlag('ios-limit', 100),
@@ -207,9 +207,9 @@ Commands:
   import-catalog --file PATH [--max N]   Import AppGoblin TSV / TSV.XZ catalog
   coverage                          Report local catalog coverage and freshness
   seed --curated                    Optional small curated demo catalog (not market coverage)
-  sweep [--storefronts us,gb,jp]      Discover via charts (Top-K only)
+  sweep [--storefronts vn]      Discover via charts (Top-K only)
   collect [--android-limit 200 --ios-limit 200 --storefront us]  Run one bounded collection cycle
-  collect-loop [--android-limit 100 --ios-limit 100 --storefronts us,vn,jp --pause-seconds 30] Continuous mode
+  collect-loop [--android-limit 100 --ios-limit 100 --storefronts vn --pause-seconds 30] Continuous mode
   analyze    Calculate derived metrics & trend scores
   backtest   Run model tournament & walk-forward validation
   export     Export site data artifact (data.json)
