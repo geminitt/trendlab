@@ -65,7 +65,8 @@ test('long-running worker rotates storefronts, slows down on errors and stops', 
       async runFullCycle(args) {
         calls.push(args);
         return { status: calls.length === 2 ? 'PARTIAL' : 'SUCCESS',
-          totalAttempted: 10, totalFailed: calls.length === 2 ? 8 : 0 };
+          totalAttempted: 10, totalFailed: calls.length === 2 ? 8 : 0,
+          totalSystemicFailures: calls.length === 2 ? 8 : 0 };
       }
     },
     wait: async ms => { pauses.push(ms); },
@@ -99,4 +100,18 @@ test('outdated series cannot receive a current trend score', () => {
     observed_rating_count: 100 + i * 20, storefront: 'us'
   }));
   assert.equal(calculateWindow(series, 'ios', { name: '30d', days: 30 }, now, 500, 'us'), null);
+});
+
+test('VN regional absences do not trigger global cooldown', async () => {
+  const pauses = [];
+  const worker = new ContinuousCollector({
+    scheduler: { async runFullCycle() {
+      return { status: 'PARTIAL', totalAttempted: 45, totalFailed: 25, totalSystemicFailures: 0 };
+    } },
+    wait: async delay => pauses.push(delay),
+    logger: { error() {} }
+  });
+  await worker.run({ storefronts: ['vn'], pauseSeconds: 2,
+    errorPauseSeconds: 30, maxCycles: 3 });
+  assert.deepEqual(pauses, [2000, 2000]);
 });
