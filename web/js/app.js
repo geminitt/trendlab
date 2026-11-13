@@ -50,6 +50,23 @@ class TrendLabApp {
     window.addEventListener('keydown', e => { if (e.key === 'Escape') this.closeDrawer(); });
     window.addEventListener('resize', () => this.layoutAndDraw());
     if (window.ResizeObserver) new ResizeObserver(() => this.layoutAndDraw()).observe(this.canvasPane);
+    // Canvas pixels do not react to CSS media queries on their own.
+    // Repaint when the OS/browser switches light↔dark, without a page reload.
+    const systemTheme = window.matchMedia?.('(prefers-color-scheme: dark)');
+    if (systemTheme) {
+      const repaint = () => {
+        this.drawCanvas();
+        const drawer = document.getElementById('drawerOverlay');
+        if (this.selected && !drawer.classList.contains('hidden')) {
+          this.renderHistory(this.selected);
+        }
+      };
+      if (systemTheme.addEventListener) {
+        systemTheme.addEventListener('change', repaint);
+      } else if (systemTheme.addListener) {
+        systemTheme.addListener(repaint);
+      }
+    }
   }
 
   async loadData() {
@@ -283,19 +300,24 @@ class TrendLabApp {
     return lo ? s.slice(0, lo) + '…' : '';
   }
 
+  themeColor(token, fallback) {
+    const value = window.getComputedStyle(this.canvasPane).getPropertyValue(token).trim();
+    return value || fallback;
+  }
+
   drawCanvas() {
     if (!this.dataset) return;
     const ctx = this.ctx;
     const w = this.canvas.width / (this.dpr || 1);
     const h = this.canvas.height / (this.dpr || 1);
     ctx.setTransform(this.dpr || 1, 0, 0, this.dpr || 1, 0, 0);
-    ctx.fillStyle = '#121416';
+    ctx.fillStyle = this.themeColor('--treemap-canvas-bg', '#121416');
     ctx.fillRect(0, 0, w, h);
     if (Array.isArray(this.mapGroups) && this.mapGroups.length > 1) {
       for (const group of this.mapGroups) {
-        ctx.fillStyle = '#202523';
+        ctx.fillStyle = this.themeColor('--treemap-group-bg', '#202523');
         ctx.fillRect(group.x, 3, group.width, 28);
-        ctx.fillStyle = '#ecf7f5';
+        ctx.fillStyle = this.themeColor('--treemap-group-text', '#ecf7f5');
         ctx.textBaseline = 'middle';
         ctx.textAlign = 'left';
         ctx.font = '700 11px system-ui, sans-serif';
@@ -303,11 +325,11 @@ class TrendLabApp {
         ctx.fillText(this.truncate(descriptor, Math.max(0, group.width - 105)), group.x + 10, 17);
         ctx.font = '500 10px system-ui, sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillStyle = '#9eb8bf';
+        ctx.fillStyle = this.themeColor('--treemap-group-meta', '#9eb8bf');
         ctx.fillText(group.count + '/' + group.totalEligible, group.x + group.width - 9, 17);
         ctx.textAlign = 'left';
         if (group.count === 0) {
-          ctx.fillStyle = '#879da8';
+          ctx.fillStyle = this.themeColor('--treemap-group-empty', '#879da8');
           ctx.font = '12px system-ui, sans-serif';
           ctx.fillText('No positive area metric in this filter', group.x + 12, 65);
         }
@@ -322,7 +344,7 @@ class TrendLabApp {
       ctx.fillStyle = this.colorFor(r.app);
       ctx.fillRect(x, y, rw, rh);
       if (hovered) {
-        ctx.strokeStyle = '#f6fff7';
+        ctx.strokeStyle = this.themeColor('--treemap-hover-outline', '#f6fff7');
         ctx.lineWidth = 2;
         ctx.strokeRect(x + 1, y + 1, rw - 2, rh - 2);
       }
@@ -333,7 +355,7 @@ class TrendLabApp {
       ctx.clip();
       const size = Math.min(14, Math.max(10, Math.min(rw / 10, rh / 3)));
       ctx.font = '700 ' + size + 'px system-ui, sans-serif';
-      ctx.fillStyle = '#f3f7f9';
+      ctx.fillStyle = this.themeColor('--treemap-tile-text', '#f3f7f9');
       ctx.textBaseline = 'top';
       const label = this.truncate(r.app.title, rw - 13);
       ctx.fillText(label, x + 6, y + 6);
@@ -341,7 +363,7 @@ class TrendLabApp {
         // Bottom-right numeric labels match the supplied reference.
         // Units remain explicit in each header, tooltip and inspector.
         ctx.font = '600 ' + Math.max(10, size - 1) + 'px system-ui, sans-serif';
-        ctx.fillStyle = '#f7faf8';
+        ctx.fillStyle = this.themeColor('--treemap-tile-text', '#f7faf8');
         const value = this.isScaleMode() ? this.compact(r.weight) :
           new Intl.NumberFormat('en-US', { maximumSignificantDigits: 4 }).format(r.weight);
         ctx.textAlign = 'right';
@@ -478,11 +500,11 @@ class TrendLabApp {
       const grid = document.createElementNS(NS, 'line');
       grid.setAttribute('x1', '12'); grid.setAttribute('y1', '90');
       grid.setAttribute('x2', '428'); grid.setAttribute('y2', '90');
-      grid.setAttribute('stroke', '#415462');
+      grid.setAttribute('stroke', this.themeColor('--history-grid', '#415462'));
       const polyline = document.createElementNS(NS, 'polyline');
       polyline.setAttribute('points', points);
       polyline.setAttribute('fill', 'none');
-      polyline.setAttribute('stroke', '#9fcf94');
+      polyline.setAttribute('stroke', this.themeColor('--history-line', '#9fcf94'));
       polyline.setAttribute('stroke-width', '2.5');
       polyline.setAttribute('vector-effect', 'non-scaling-stroke');
       svg.append(grid, polyline); chart.append(svg);

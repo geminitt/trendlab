@@ -1,0 +1,162 @@
+/*
+ * TrendLab automatically follows the operating-system / browser color scheme.
+ * No localStorage, user preference override, or manual refresh required.
+ * Loaded AFTER style.css and karpathy-minimal.css.
+ *
+ * Treemap DATA colors (ratings & trend signals) remain unchanged across themes;
+ * only Canvas chrome, labels, outlines, and surrounding application UI change.
+ */
+:root {
+  --treemap-canvas-bg: #121416;
+  --treemap-group-bg: #202523;
+  --treemap-group-text: #ecf7f5;
+  --treemap-group-meta: #9eb8bf;
+  --treemap-group-empty: #a3bec9;
+  --treemap-hover-outline: #f6fff7;
+  --treemap-tile-text: #f7faf8;
+  --history-grid: #415462;
+  --history-line: #9fcf94;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #f7f8fb;
+    --surface: #ffffff;
+    --surface2: #f0f3f7;
+    --line: #d5dce5;
+    --muted: #536071;
+    --text: #17202d;
+    --bright: #101827;
+    --accent: #146b46;
+    --cool: #23758a;
+    --warning: #855309;
+
+    --treemap-canvas-bg: #e9eef3;
+    --treemap-group-bg: #dde5eb;
+    --treemap-group-text: #192736;
+    --treemap-group-meta: #4c6474;
+    --treemap-group-empty: #486376;
+    --treemap-hover-outline: #fcfcfe;
+    /* Tile fills remain saturated, so their labels stay white in both modes. */
+    --treemap-tile-text: #ffffff;
+    --history-grid: #bdcbd8;
+    --history-line: #237e56;
+  }
+
+  body { background: var(--bg); color: var(--text); }
+  .topbar { background: #ffffff; border-bottom-color: #d7dce5; }
+  .brand-title { color: #17202d; }
+  .brand-title span { color: #147346; }
+  .brand-symbol { border-color: #a8caba; background: #eef7f1; }
+  .brand-symbol span { background: #279366; }
+  .top-right { color: #546171; }
+  .top-separator { border-left-color: #ced6de; }
+  .status-dot { box-shadow: 0 0 0 3px #d6eadd; }
+  .research-intro h1 { color: #131d2b; }
+  .research-intro p { color: #465467; }
+  .research-intro p strong { color: #182536; }
+  .prototype-label { background: #e6f1e9; color: #146b40; border: 1px solid #c3dfce; }
+
+  .control-label { color: #475469; }
+  .segmented button,
+  select,
+  .search-field {
+    background: #ffffff;
+    border-color: #c6ced9;
+    color: #344359;
+  }
+  .segmented button.active {
+    background: #deece4;
+    border-color: #76aa8d;
+    color: #115436;
+  }
+  .segmented button:hover:not(.active) { background: #edf2f7; color: #17202d; }
+  .search-field input { color: #1e2938; }
+  .search-field input::placeholder { color: #667688; }
+  .search-field span { color: #526679; }
+
+  .research-stats { border-bottom-color: #dce2e9; }
+  .research-stat > span { color: #526075; }
+  .research-stat strong { color: #162233; }
+  .research-stat:nth-child(2) strong { color: #176b43; }
+  .research-stat:nth-child(3) strong { color: #5940a6; }
+  .research-stat:nth-child(4) strong { color: #11687b; }
+  .research-stat small { color: #526275; }
+  .map-overview-heading { color: #344254; }
+  .workspace-separator { color: #8f9ba9; }
+  .interpretation { color: #526276; }
+  .info-mark { border-color: #8e9bac; color: #44556a; }
+  .map-header span:first-child { color: #28374a; }
+  .map-header span:last-child { color: #536173; }
+  .canvas-frame { background: var(--treemap-canvas-bg); }
+  .map-footer { color: #526175; }
+  .footer { border-top-color: #dce2e8; color: #5b6879; }
+
+  .canvas-tooltip {
+    background: #fffffff5;
+    border-color: #a6b4bf;
+    color: #1b2838;
+    box-shadow: 0 12px 30px #24364b30;
+  }
+  .tip-title { color: #142335; }
+  .tip-muted { color: #53687a; }
+  .tip-value { color: #126141; }
+
+  .readiness-surface { background: #edf2f6; }
+  .minimal-readiness {
+    background: #ffffff;
+    border-color: #cbd4df;
+    box-shadow: 0 12px 32px #24364b18;
+  }
+  .readiness-kicker { color: #176b49; }
+  .minimal-readiness h3 { color: #162438; }
+  .minimal-readiness p { color: #4d5f73; }
+  .minimal-readiness strong { color: #1b3244; }
+  .minimal-readiness button {
+    background: #dbefe2;
+    border-color: #8bc6a3;
+    color: #115333;
+  }
+  .minimal-readiness button:hover { background: #c6e4d1; }
+
+  .drawer-overlay { color: #192736; }
+  .drawer-backdrop { background: #0e1b2b70; }
+  .drawer { background: #ffffff; border-left-color: #bdcbd7; box-shadow: -15px 0 45px #11203130; }
+  .drawer-top { color: #1d2c3e; }
+  .close-button { color: #273b4e; background: #f2f5f7; border-color: #cbd5df; }
+  .close-button:hover { background: #e4edf3; }
+  .drawer-header { border-bottom-color: #d9e1e7; }
+  .drawer-header h2 { color: #172335; }
+  .drawer-developer { color: #586b7b; }
+  .platform-tag { color: #126c4b; }
+  .detail-notice {
+    color: #2f4e36;
+    background: #ecf5e9;
+    border-color: #b5d3b6;
+  }
+  .detail-notice.unknown { background: #eff3f8; border-color: #cad8e4; color: #4b6274; }
+  .detail-stat { background: #f8fafc; border-color: #d4dde5; }
+  .detail-stat span { color: #566b7e; }
+  .detail-stat strong { color: #192b3c; }
+  .detail-stat small { color: #586b7a; }
+  .detail-section { color: #182b3c; }
+  .detail-section-heading span { color: #586b7a; }
+  .history-chart { background: #f7fafd; border-color: #d4e0e8; color: #566b7e; }
+  .history-table { color: #33495b; }
+  .history-table th { color: #485f71; border-bottom-color: #c6d4df; }
+  .history-table td { border-bottom-color: #e3e9ef; }
+  .source-grid span { color: #536b7f; }
+  .source-grid strong { color: #1f3448; }
+  .store-link { color: #134f36; border-color: #a3cbb0; background: #e3f2e6; }
+  .store-link:hover { background: #cfe7d6; }
+}
+
+/* Smooth theme transitions for the surrounding UI.
+   Keep them subtle; treemap visualization repaints immediately. */
+@media (prefers-reduced-motion: no-preference) {
+  body, .topbar, .search-field, .segmented button, select, .drawer,
+  .canvas-tooltip, .minimal-readiness, .canvas-frame {
+    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+  }
+}
