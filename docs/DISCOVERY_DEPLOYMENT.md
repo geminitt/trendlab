@@ -1,3 +1,5 @@
+> **Updated 2026-11-13: Vietnam-only research scope.** The old multi-country examples below are historical and must NOT be used. Follow [VIETNAM_DEPLOYMENT.md](VIETNAM_DEPLOYMENT.md) for the tested systemd rollout, and see [REQUIREMENTS_ACCEPTANCE.md](REQUIREMENTS_ACCEPTANCE.md) for binding VN-only requirements.
+
 # Daily supplemental catalog discovery on Ubuntu
 
 **Read AGENTS.md and docs/REQUIREMENTS_ACCEPTANCE.md.** This adds unattended Top-Chart discovery only. It **does not** automatically import a fresh AppGoblin dataset, discover every new Education app, or satisfy R1.
@@ -26,7 +28,7 @@ journalctl -u trendlab-discover.service -n 100 --no-pager
 node bin/cli.js coverage
 ```
 
-The daily timer operates in **UTC**. It queries **Top Free** Education charts in US, VN, GB, DE, JP and IN on both stores (subject to scraper availability). Each chart is bounded (up to 100 per country), which is why this **cannot** discover the long tail, all newly published apps, or prove worldwide completeness.
+The daily timer operates in **UTC**. It queries **Top Free** Education charts in VN on both stores (subject to scraper availability). Each chart is bounded (up to 100 per country), which is why this **cannot** discover the long tail, all newly published apps, or prove worldwide completeness.
 
 When investigating failures, check `journalctl -u trendlab-discover.service` and provider 403/429 responses. Slow down or halt where required. Do not attempt to bypass provider limitations.
 
