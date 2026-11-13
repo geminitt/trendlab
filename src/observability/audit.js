@@ -61,15 +61,16 @@ function audit(event, detail = {}) {
     run_id: RUN_ID,
     pid: process.pid,
     command: process.argv[2] || 'unknown',
-    event,
-    ...sanitized(detail)
+    ...sanitized(detail),
+    event
   };
   const row = JSON.stringify(entry) + '\n';
   fs.mkdirSync(LOG_DIR, { recursive: true, mode: 0o700 });
   const output = path.join(LOG_DIR, 'events-' + ts.slice(0, 10) + '.jsonl');
   fs.appendFileSync(output, row, { encoding: 'utf8', mode: 0o600, flag: 'a' });
   // Journald receives full structured events too. No console interception.
-  process.stdout.write(row);
+  // Use stderr for journald so CLI 'coverage' retains machine-readable stdout.
+  process.stderr.write(row);
   return entry;
 }
 
