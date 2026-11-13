@@ -128,6 +128,67 @@ class Repository {
     return selection;
   }
 
+  // Vietnam research scheduler: spend most API capacity on apps with verified
+  // VN chart/lookup evidence and a small fixed lane on never-tried catalog IDs.
+  // The global AppGoblin catalog is only a candidate pool, NOT a VN app census.
+  // Deliberately do not fill idle capacity with unbounded global probes.
+  getDueMarketApps({ platform, storefront = 'vn', limit = 100,
+                     explorationShare = 0.2, now = new Date().toISOString() } = {}) {
+    if (!['android', 'ios'].includes(platform)) throw new Error('Unknown platform');
+    if (!/^[a-z]{2}$/.test(storefront)) throw new Error('Invalid storefront');
+    if (!Number.isSafeInteger(limit) || limit < 1) throw new RangeError('Invalid limit');
+    if (!Number.isFinite(explorationShare) ||
+        explorationShare < 0 || explorationShare > 1) throw new RangeError('Invalid exploration share');
+
+    const exploreLimit = explorationShare === 0 ? 0 :
+      Math.max(1, Math.floor(limit * explorationShare));
+    const focusLimit = limit - exploreLimit;
+
+    const focused = focusLimit ? this.db.prepare(`
+      SELECT p.* FROM platform_applications p
+      JOIN (
+        SELECT DISTINCT platform_app_id
+        FROM observed_metrics
+        WHERE storefront = ?
+          AND (observed_rank IS NOT NULL
+            OR observed_install_counter IS NOT NULL
+            OR observed_rating_count IS NOT NULL)
+      ) vn ON vn.platform_app_id = p.id
+      LEFT JOIN collection_state c ON c.platform_app_id = p.id AND c.storefront = ?
+      WHERE p.is_active = 1 AND p.platform = ?
+        AND (c.last_attempted_at IS NULL OR c.next_due_at <= ?)
+      ORDER BY CASE WHEN c.last_attempted_at IS NULL THEN 0 ELSE 1 END,
+               c.next_due_at ASC, p.id ASC
+      LIMIT ?
+    `).all(storefront, storefront, platform, now, focusLimit) : [];
+
+    const exploratory = exploreLimit ? this.db.prepare(`
+      SELECT p.* FROM platform_applications p
+      LEFT JOIN collection_state c ON c.platform_app_id = p.id AND c.storefront = ?
+      WHERE p.platform = ? AND p.is_active = 1
+        AND c.last_attempted_at IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM observed_metrics m
+          WHERE m.platform_app_id = p.id AND m.storefront = ?
+            AND (m.observed_rank IS NOT NULL
+              OR m.observed_install_counter IS NOT NULL
+              OR m.observed_rating_count IS NOT NULL)
+        )
+      ORDER BY p.first_seen_at DESC, p.id
+      LIMIT ?
+    `).all(storefront, platform, storefront, exploreLimit) : [];
+
+    // Alternate lanes to keep early progress visible while preserving VN
+    // chart evidence freshness. No double selection between the two lanes.
+    const result = [];
+    const max = Math.max(focused.length, exploratory.length);
+    for (let i = 0; i < max; i++) {
+      if (i < focused.length) result.push(focused[i]);
+      if (i < exploratory.length) result.push(exploratory[i]);
+    }
+    return result;
+  }
+
   recordCollectionAttempt({
     platformAppId, storefront = 'global', succeeded, error = null,
     observedAt = new Date().toISOString(), refreshHours = 24,
