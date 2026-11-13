@@ -10,8 +10,8 @@ if [[ "$MODE" != "--inspect" && "$MODE" != "--archive" ]]; then
   echo "Usage: bash scripts/archive-audit-logs.sh [--inspect|--archive]" >&2
   exit 2
 fi
-SRC="logs"
-DEST="backups/audit-jsonl"
+SRC="${TRENDLAB_LOG_DIR:-logs}"
+DEST="${TRENDLAB_AUDIT_ARCHIVE_DIR:-backups/audit-jsonl}"
 if [[ ! -d "$SRC" ]]; then
   echo "NO LOGS: $SRC"
   exit 0
