@@ -140,7 +140,7 @@ test('VN export excludes unverified global-only apps and US/JP metrics and prese
 test('analytics never mixes US chart/ratings with VN time-series even within same app', () => {
   const now = new Date('2026-11-13T00:00:00.000Z');
   const series = [
-    { observed_at: '2026-11-08T00:00:00.000Z', observed_rating_count: 50, storefront: 'vn' },
+    { observed_at: '2026-11-07T00:00:00.000Z', observed_rating_count: 50, storefront: 'vn' },
     { observed_at: '2026-11-09T00:00:00.000Z', observed_rating_count: 10000, storefront: 'us' },
     { observed_at: '2026-11-10T00:00:00.000Z', observed_rating_count: 70, storefront: 'vn' },
     { observed_at: '2026-11-12T00:00:00.000Z', observed_rating_count: 90, storefront: 'vn' }
