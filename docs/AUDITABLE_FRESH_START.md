@@ -71,12 +71,12 @@ This action intentionally creates a new empty active database. It **does not** r
 bash scripts/reset-vn-auditable.sh --reset CONFIRM_FRESH_VN_DATABASE
 ```
 
-The script refuses reset if known systemd units/timers or a CLI process are active, or if SQLite integrity checks fail. It archives:
+The script refuses reset if known systemd units/timers or a CLI process are active, or if SQLite integrity checks fail. Its checks are a safeguard, not a substitute for the full inventory in step 0 (including user-level systemd and cron). It archives:
 
 - `backups/reset-YYYYMMDDTHHMMSSZ/pre-reset.sqlite` (verified, with SHA-256).
 - The former `trendlab.sqlite` plus `-wal/-shm` companions (if present).
 - Accessible old `journalctl -o json` messages, effective unit definitions, process/timer inventory, Git revision and old `config/default.json`.
-- Existing `logs/events-*.jsonl` copies and the old `web/data/data.json`.
+- Previous `logs/events-*.jsonl` moved into `previous-jsonl/`, plus the old `web/data/data.json`. The active `logs/` directory starts with fresh new-run events.
 
 It then creates a fresh `data/trendlab.sqlite` via the application schema, exports an empty dataset, and keeps everything STOPPED. **Archived data can be restored, but no measurements are silently copied forward.**
 
