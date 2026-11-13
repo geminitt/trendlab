@@ -150,8 +150,8 @@ class TrendLabApp {
     const apps = this.filtered();
     const uniqueApps = ['android', 'ios'].flatMap(platform =>
       TrendLabScale.dedupePlatformApps(apps, platform));
-    const catalog = this.dataset.meta?.catalogApps || 0;
-    const observed = this.dataset.meta?.totalApps || this.dataset.apps.length;
+    const catalog = this.dataset.meta?.marketCandidateApps ?? this.dataset.meta?.catalogApps ?? 0;
+    const observed = this.dataset.meta?.marketMeasuredApps ?? this.dataset.meta?.totalApps ?? this.dataset.apps.length;
     const ready = uniqueApps.filter(app => {
       const models = app.scores?.[this.window];
       return models && Object.values(models).some(entry => Number.isFinite(entry?.score));
@@ -178,10 +178,10 @@ class TrendLabApp {
       this.formatCount(positive) + ' apps with positive selected signal';
     document.getElementById('areaExplanation').textContent = this.isScaleMode() ?
       (this.platform === 'all' ?
-        'AREA = linear source count, independently within Android and iOS (different units). COLOR = stars.' :
+        'AREA = VN storefront source counts, separately for Android and iOS (different units). COLOR = VN stars.' :
         this.platform === 'android' ?
-          'AREA = linear observed Android maxInstalls (unverified semantics). COLOR = user stars.' :
-          'AREA = linear US App Store rating count. COLOR = US user stars.') :
+          'AREA = Android public maxInstalls observed from VN; NOT installs in VN. COLOR = user stars.' :
+          'AREA = linear VN App Store rating count. COLOR = VN user stars.') :
       this.metric === 'model_a_growth' ?
         'AREA = linear change in the observed source counter. COLOR = relative change within platform; not verified daily downloads.' :
       this.metric === 'rating_velocity' ?
@@ -265,7 +265,7 @@ class TrendLabApp {
       const group = groups[index];
       const x = gap + index * (panelWidth + gap);
       const descriptor = isScale ?
-        (group.platform === 'android' ? 'ANDROID · MAXINSTALLS' : 'iOS · US RATING COUNT') :
+        (group.platform === 'android' ? 'ANDROID · MAXINSTALLS (VN LOOKUP)' : 'iOS · VN RATING COUNT') :
         group.platform.toUpperCase() + ' · ' + TrendLabArea.METRIC_LABELS[this.metric].toUpperCase();
       this.mapGroups.push({
         platform: group.platform, x, width: panelWidth,
@@ -281,7 +281,7 @@ class TrendLabApp {
       'AREA · linear ' + TrendLabArea.METRIC_LABELS[this.metric] +
         '    COLOR · signal strength relative within platform';
     document.getElementById('mapFooterNote').textContent = isScale ?
-      'Android maxInstalls is unverified · iOS US ratings are not downloads · zero excluded' :
+      'Android maxInstalls is not Vietnam installs · iOS VN ratings are not downloads · zero excluded' :
       this.metric === 'model_a_growth' ?
         'Zero, negative and missing values omitted · observed counter increases are not exact downloads' :
         'Zero, negative and missing values omitted · provisional signal, not market share';
@@ -396,7 +396,7 @@ class TrendLabApp {
         info.className = 'tip-value';
         const value = found.weight;
         info.textContent = this.isScaleMode() ?
-          (app.platform === 'android' ? 'Public maxInstalls counter: ' : 'US storefront rating count: ') +
+          (app.platform === 'android' ? 'Public maxInstalls counter: ' : 'VN storefront rating count: ') +
           this.formatCount(value) :
           'Provisional ' + TrendLabArea.METRIC_LABELS[this.metric] + ': ' +
             new Intl.NumberFormat('en-US', { maximumSignificantDigits: 6 }).format(value);
@@ -429,14 +429,14 @@ class TrendLabApp {
     this.setText('modalTitle', app.title);
     this.setText('modalDeveloper', app.developer || 'Unknown developer');
     this.setText('modalPlatform', app.platform.toUpperCase() +
-      (app.platform === 'ios' ? ' · Storefront ' + (app.storefront === 'global' ? 'US signal' : app.storefront) : ''));
+      (app.platform === 'ios' ? ' · Storefront ' + 'VN signal' : ''));
     const score = this.getScore(app);
     const metric = app.metrics && app.metrics[this.window];
     const hasEvidence = score !== null;
     const notice = document.getElementById('modalNotice');
     notice.classList.toggle('unknown', !hasEvidence);
     notice.textContent = this.isScaleMode() ?
-      'Observed scale: tile area is linear in the source counter within this platform. Android maxInstalls semantics remain unverified; iOS US ratings are not downloads. These source counters do not establish market share or download growth.' :
+      'Vietnam storefront only: tile area is linear in the selected source counter. Android maxInstalls is not Vietnam installs; iOS VN rating counts are not downloads. Neither is VN market share.' :
       hasEvidence ? (this.metric === 'model_a_growth' ?
         'Tile area is linear in the observed increase of the platform-specific source counter, not exact daily downloads. Zero/negative values are not drawn.' :
         'Tile area is linear in the positive value of the selected provisional signal; zero and negative values are not drawn. This is not a validated forecast.') :
@@ -476,7 +476,7 @@ class TrendLabApp {
     const chart = document.getElementById('historyChart');
     chart.replaceChildren();
     const history = (app.history || []).filter(point => app.platform !== 'ios' ||
-      point.storefront === 'us' || point.storefront === app.storefront);
+      point.storefront === 'vn');
     const field = app.platform === 'android' && history.some(p => Number.isFinite(p.installs)) ?
       'installs' : 'ratings';
     const valid = history.filter(p => Number.isFinite(p[field])).sort((a, b) =>
