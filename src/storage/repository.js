@@ -236,6 +236,34 @@ class Repository {
       WHERE p.is_active = 1
       GROUP BY p.platform ORDER BY p.platform
     `).all(new Date(Date.parse(now) - 24 * 3600000).toISOString(), now);
+    // VN-specific progress is independent of the historic imported worldwide catalog.
+    // Chart-only evidence is separately visible; it is not counted as numeric metrics.
+    const market = 'vn';
+    const marketSummary = this.db.prepare(`
+      SELECT p.platform,
+        COUNT(DISTINCT o.platform_app_id) AS market_candidates,
+        COUNT(DISTINCT CASE WHEN o.observed_install_counter IS NOT NULL
+          OR o.observed_rating_count IS NOT NULL THEN o.platform_app_id END)
+          AS apps_with_market_metrics,
+        COUNT(DISTINCT CASE WHEN o.observed_rank IS NOT NULL
+          THEN o.platform_app_id END) AS charted_market_apps
+      FROM platform_applications p
+      JOIN observed_metrics o ON o.platform_app_id = p.id AND o.storefront = ?
+      WHERE p.is_active = 1
+      GROUP BY p.platform ORDER BY p.platform
+    `).all(market);
+    const marketSuccess = this.db.prepare(`
+      SELECT p.platform, COUNT(*) AS successful_last_24h
+      FROM collection_state c
+      JOIN platform_applications p ON p.id = c.platform_app_id
+      WHERE c.storefront = ? AND p.is_active = 1
+        AND c.last_success_at >= ?
+      GROUP BY p.platform
+    `).all(market, new Date(Date.parse(now) - 24 * 3600000).toISOString());
+    const recentMarket = new Map(marketSuccess.map(r => [r.platform, r.successful_last_24h]));
+    for (const row of marketSummary) {
+      row.successful_last_24h = recentMarket.get(row.platform) || 0;
+    }
     const audit = this.db.prepare(`
       SELECT job_type, started_at, completed_at, status,
         items_attempted, items_succeeded, items_failed, error_summary
@@ -243,8 +271,10 @@ class Repository {
     `).all();
     return {
       generatedAt: now,
-      coverageMeaning: 'Counts only apps present in local catalog, not all global Education apps.',
+      researchMarket: market,
+      coverageMeaning: 'byPlatform is historical mixed-country catalog coverage, NOT Vietnam coverage. marketByPlatform counts apps with VN chart/lookup evidence only; not a census of all VN Education apps.',
       byPlatform: summary,
+      marketByPlatform: marketSummary,
       recentJobs: audit
     };
   }
