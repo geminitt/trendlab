@@ -2,6 +2,7 @@ const Repository = require('../storage/repository');
 const AndroidCollector = require('./android_collector');
 const IosCollector = require('./ios_collector');
 const StoreSweeper = require('../catalog/store_sweeper');
+const config = require('../../config/default.json');
 
 class CollectionScheduler {
   constructor(repo = null) {
@@ -11,7 +12,7 @@ class CollectionScheduler {
     this.sweeper = new StoreSweeper(this.repo);
   }
 
-  async runFullCycle({ androidLimit = 200, iosLimit = 200, storefront = 'us' } = {}) {
+  async runFullCycle({ androidLimit = 200, iosLimit = 200, storefront = config.catalog.researchMarket || 'vn' } = {}) {
     console.log('=== STARTING TRENDLAB FULL COLLECTION CYCLE ===');
     const auditId = this.repo.startAuditLog('FULL_COLLECTION_CYCLE');
 
@@ -28,7 +29,7 @@ class CollectionScheduler {
       }
 
       // 2. Run Android Collection
-      const andRes = await this.androidCollector.collectAll({ limit: androidLimit });
+      const andRes = await this.androidCollector.collectAll({ limit: androidLimit, country: storefront });
       totalAttempted += andRes.attempted;
       totalSucceeded += andRes.succeeded;
       totalFailed += andRes.failed;
