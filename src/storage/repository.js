@@ -418,6 +418,12 @@ class Repository {
       id, platformAppId, windowType, modelIdentifier, cleanGrowth, cleanMomentum,
       cleanPersistence, cleanFinalScore, trendRank, flags, evaluatedAt
     );
+    audit('analytics.score_saved', {
+      score_id: id, platform_app_id: platformAppId,
+      window_type: windowType, model: modelIdentifier,
+      score: cleanFinalScore, growth: cleanGrowth, momentum: cleanMomentum,
+      persistence: cleanPersistence, rank: trendRank, evaluated_at: evaluatedAt
+    });
     return id;
   }
 
@@ -429,6 +435,7 @@ class Repository {
       INSERT INTO collection_audit_logs (id, job_type, started_at, status)
       VALUES (?, ?, ?, 'RUNNING')
     `).run(id, jobType, now);
+    audit('job.started', { job_id: id, job_type: jobType, started_at: now });
     return id;
   }
 
@@ -439,6 +446,8 @@ class Repository {
       SET completed_at = ?, status = ?, items_attempted = ?, items_succeeded = ?, items_failed = ?, error_summary = ?
       WHERE id = ?
     `).run(now, status, attempted, succeeded, failed, errorSummary, id);
+    audit('job.finished', { job_id: id, status,
+      attempted, succeeded, failed, error: errorSummary, completed_at: now });
   }
 }
 
