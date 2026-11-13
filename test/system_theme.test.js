@@ -46,7 +46,10 @@ test('light mode overrides UI surfaces and readable text, including details, too
 
 test('browser theme changes repaint canvas without rebuilding the metric dataset', () => {
   assert.match(app, /matchMedia\?\.\('\(prefers-color-scheme: dark\)'\)/);
-  assert.match(app, /addEventListener\('change',\s*\(\) => this\.drawCanvas\(\)\)/);
+  assert.match(app, /addEventListener\('change', repaint\)/);
+  assert.match(app, /const repaint = \(\) =>/);
+  assert.match(app, /this\.drawCanvas\(\)/);
+  assert.match(app, /this\.renderHistory\(this\.selected\)/);
   assert.match(app, /themeColor\(token, fallback\)/);
   assert.match(app, /getComputedStyle\(this\.canvasPane\)/);
   assert.match(app, /themeColor\('--treemap-canvas-bg'/);
