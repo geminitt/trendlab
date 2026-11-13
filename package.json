@@ -4,14 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test"
+    "test": "node scripts/run-tests.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "app-store-scraper": "^0.18.0",
     "google-play-scraper": "^10.1.4"
   }
 }
