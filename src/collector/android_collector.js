@@ -69,13 +69,17 @@ class AndroidCollector {
   }
 
   async collectAll({ limit = 100, country = config.collector.android.country || 'vn' } = {}) {
-    const apps = this.repo.getDuePlatformApps({ platform: 'android', storefront: country, limit, preferStorefront: country });
+    const apps = country === (config.catalog.researchMarket || 'vn')
+      ? this.repo.getDueMarketApps({ platform: 'android', storefront: country, limit,
+        explorationShare: config.collector.marketExplorationShare ?? 0.2 })
+      : this.repo.getDuePlatformApps({ platform: 'android', storefront: country, limit });
     console.log(`[AndroidCollector] Starting collection for ${apps.length} Android apps...`);
 
     let succeeded = 0;
     let failed = 0;
     let attempted = 0;
     let consecutiveRateLimits = 0;
+    let systemicFailures = 0;
     const baseDelay = config.collector.android.requestDelayMs || 1500;
     const jitter = config.collector.android.randomJitterMs || 500;
 
@@ -87,6 +91,9 @@ class AndroidCollector {
       this.repo.recordCollectionAttempt({
         platformAppId: app.id, storefront: country,
         succeeded: res.success, error: res.error,
+        retryHours: !res.success && /^NOT_AVAILABLE_IN_/.test(String(res.error)) ?
+          (config.collector.regionNotFoundRetryHours ?? 168) : 1,
+        maxRetryHours: 720,
         refreshHours: config.collector.android.refreshHours ?? 24
       });
 
@@ -96,6 +103,7 @@ class AndroidCollector {
         console.log(`  [${i + 1}/${apps.length}] ${app.title} (${res.appId}) -> OK (${res.latency}ms)`);
       } else {
         failed++;
+        if (!/^NOT_AVAILABLE_IN_/.test(String(res.error))) systemicFailures++;
         consecutiveRateLimits = /(?:429|rate.?limit|too many requests)/i.test(String(res.error)) ?
           consecutiveRateLimits + 1 : 0;
         console.warn(`  [${i + 1}/${apps.length}] ${app.title} (${res.appId}) -> FAILED: ${res.error}`);
@@ -113,7 +121,7 @@ class AndroidCollector {
     }
 
     console.log(`[AndroidCollector] Finished: ${succeeded} succeeded, ${failed} failed.`);
-    return { attempted, succeeded, failed };
+    return { attempted, succeeded, failed, systemicFailures };
   }
 }
 
