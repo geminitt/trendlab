@@ -56,12 +56,12 @@ function audit(event, detail = {}) {
   }
   const ts = new Date().toISOString();
   const entry = {
+    ...sanitized(detail),
     schema_version: 1,
     ts,
     run_id: RUN_ID,
     pid: process.pid,
     command: process.argv[2] || 'unknown',
-    ...sanitized(detail),
     event
   };
   const row = JSON.stringify(entry) + '\n';
