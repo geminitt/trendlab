@@ -72,18 +72,30 @@ class Repository {
   // Reserve capacity for first observations AND for recurring observations.
   // Otherwise a large imported catalog starves refreshes indefinitely.
   getDuePlatformApps({ platform, storefront = 'global', limit = 100,
-                       now = new Date().toISOString(), newShare = 0.5 } = {}) {
+                       now = new Date().toISOString(), newShare = 0.5,
+                       preferStorefront = null } = {}) {
     if (!['android', 'ios'].includes(platform)) throw new Error('Unknown platform');
     if (!Number.isSafeInteger(limit) || limit < 1) throw new RangeError('limit must be positive');
     if (!Number.isFinite(newShare) || newShare < 0 || newShare > 1) {
       throw new RangeError('newShare must be in [0, 1]');
     }
+    // In a single-market study, collect apps observed in that country's
+    // Education charts before exploring the unverified bulk catalog backlog.
+    // Use an indexed EXISTS check; do not drop or delete other catalog entries.
+    const preferred = preferStorefront ?
+      `CASE WHEN EXISTS (
+        SELECT 1 FROM observed_metrics m
+        WHERE m.platform_app_id = p.id AND m.storefront = ?
+          AND m.observed_rank IS NOT NULL
+      ) THEN 0 ELSE 1 END,` : '';
+    const newArgs = (max) => preferStorefront ?
+      [storefront, platform, preferStorefront, max] : [storefront, platform, max];
     const newlySeen = this.db.prepare(`
       SELECT p.* FROM platform_applications p
       LEFT JOIN collection_state c
         ON c.platform_app_id = p.id AND c.storefront = ?
       WHERE p.platform = ? AND p.is_active = 1 AND c.last_attempted_at IS NULL
-      ORDER BY p.first_seen_at DESC, p.id ASC LIMIT ?
+      ORDER BY ${preferred} p.first_seen_at DESC, p.id ASC LIMIT ?
     `);
     const revisits = this.db.prepare(`
       SELECT p.* FROM platform_applications p
@@ -96,14 +108,14 @@ class Repository {
     `);
     const newQuota = Math.ceil(limit * newShare);
     const oldQuota = limit - newQuota;
-    const fresh = newlySeen.all(storefront, platform, newQuota);
+    const fresh = newlySeen.all(...newArgs(newQuota));
     const recurring = revisits.all(storefront, platform, now, oldQuota);
     // Fill unused capacity from either pool without repeating an app.
     if (fresh.length < newQuota) {
       recurring.push(...revisits.all(storefront, platform, now, limit - fresh.length)
         .slice(recurring.length));
     } else if (recurring.length < oldQuota) {
-      fresh.push(...newlySeen.all(storefront, platform, limit - recurring.length)
+      fresh.push(...newlySeen.all(...newArgs(limit - recurring.length))
         .slice(fresh.length));
     }
     // Alternate so long-running collection proceeds fairly through both pools.
