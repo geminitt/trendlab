@@ -1,6 +1,7 @@
 const https = require('node:https');
 const Repository = require('../storage/repository');
 const config = require('../../config/default.json');
+const { audit } = require('../observability/audit');
 
 function fetchJson(url, userAgent) {
   return new Promise((resolve, reject) => {
@@ -51,6 +52,11 @@ class IosCollector {
       let succeeded = 0;
       let failed = 0;
 
+      audit('collector.source_response', {
+        platform: 'ios', storefront, source: 'itunes-lookup',
+        requested: apps.length, returned: resultMap.size,
+        elapsed_ms: Date.now() - t0
+      });
       for (const app of apps) {
         const item = resultMap.get(String(app.native_store_id));
         if (item) {
@@ -61,6 +67,11 @@ class IosCollector {
               platformAppId: app.id, storefront, succeeded: false,
               error: 'NOT_EDUCATION',
               retryHours: 720, maxRetryHours: 720
+            });
+            audit('collector.lookup_result', {
+              platform: 'ios', storefront, platform_app_id: app.id,
+              native_store_id: app.native_store_id, outcome: 'not_education',
+              error: 'NOT_EDUCATION'
             });
             continue;
           }
@@ -105,6 +116,12 @@ class IosCollector {
             platformAppId: app.id, storefront, succeeded: true,
             refreshHours: config.collector.ios.refreshHours ?? 24
           });
+          audit('collector.lookup_result', {
+            platform: 'ios', storefront, platform_app_id: app.id,
+            native_store_id: app.native_store_id, outcome: 'success',
+            rating_count: item.userRatingCount ?? null,
+            rating_score: item.averageUserRating ?? null
+          });
         } else {
           failed++;
           this.repo.recordCollectionAttempt({
@@ -113,6 +130,11 @@ class IosCollector {
             retryHours: config.collector.regionNotFoundRetryHours ?? 168,
             maxRetryHours: 720
           });
+          audit('collector.lookup_result', {
+            platform: 'ios', storefront, platform_app_id: app.id,
+            native_store_id: app.native_store_id, outcome: 'not_found_in_storefront',
+            error: 'NOT_FOUND_IN_STOREFRONT'
+          });
         }
       }
 
@@ -120,6 +142,10 @@ class IosCollector {
       return { succeeded, failed, systemicFailures: 0 };
     } catch (err) {
       console.error(`  [IosCollector] Batch failed:`, err.message);
+      audit('collector.source_error', {
+        platform: 'ios', storefront, source: 'itunes-lookup',
+        attempted: apps.length, elapsed_ms: Date.now() - t0, error: err
+      });
       for (const app of apps) {
         this.repo.recordCollectionAttempt({
           platformAppId: app.id, storefront, succeeded: false, error: err.message
@@ -135,6 +161,10 @@ class IosCollector {
         explorationShare: config.collector.marketExplorationShare ?? 0.2 })
       : this.repo.getDuePlatformApps({ platform: 'ios', storefront, limit });
     console.log(`[IosCollector] Starting batch collection for ${apps.length} iOS apps (Storefront: ${storefront.toUpperCase()})...`);
+    audit('collector.batch_started', {
+      platform: 'ios', storefront, selected: apps.length,
+      requested_limit: limit, batch_size: config.collector.ios.lookupBatchSize || 50
+    });
 
     const batchSize = config.collector.ios.lookupBatchSize || 50;
     let totalSucceeded = 0;
@@ -163,6 +193,11 @@ class IosCollector {
     }
 
     console.log(`[IosCollector] Finished: ${totalSucceeded} succeeded, ${totalFailed} failed.`);
+    audit('collector.batch_finished', {
+      platform: 'ios', storefront, attempted, succeeded: totalSucceeded,
+      failed: totalFailed, systemic_failures: systemicFailures,
+      skipped_after_limit: apps.length - attempted
+    });
     return { attempted, succeeded: totalSucceeded, failed: totalFailed, systemicFailures };
   }
 }
