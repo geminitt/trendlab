@@ -34,10 +34,12 @@ class ContinuousCollector {
       let hadError = false;
       try {
         const report = await this.scheduler.runFullCycle({ androidLimit, iosLimit, storefront });
-        // Individual app failures already have per-app retry backoff.
-        // This cooldown also prevents tight retry loops after systemic failures.
+        // A VN-specific 404/absence is NOT proof of rate limiting.
+        // Only provider/network failures should slow the whole worker;
+        // per-app storefront misses are individually backed off for 7+ days.
         hadError = report.status === 'FAILED' ||
-          (report.totalAttempted > 0 && report.totalFailed / report.totalAttempted >= 0.5);
+          (report.totalAttempted > 0 &&
+            (report.totalSystemicFailures || 0) / report.totalAttempted >= 0.25);
       } catch (error) {
         hadError = true;
         this.logger.error('[ContinuousCollector] Cycle failed:', error);
