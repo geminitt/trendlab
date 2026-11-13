@@ -40,7 +40,7 @@ function calculateWindow(series, platform, window, now, priorShrinkage, storefro
     t: Date.parse(s.observed_at),
     val: s[field]
   })).filter(s => Number.isFinite(s.t) && s.t >= startMs && s.t <= endMs && validCounter(s.val)
-    && (platform !== 'ios' || s.storefront === storefront));
+    && (storefront === null || s.storefront === storefront));
   parsed.sort((a, b) => a.t - b.t);
   // Collapse duplicate timestamps, preferring the most recently loaded row.
   const points = parsed.filter((p, i) => i === 0 || p.t !== parsed[i - 1].t);
@@ -110,11 +110,11 @@ class DerivedMetricsCalculator {
     if (!series.length) return [];
     const results = [];
     const prior = config.analytics.priorShrinkage ?? 500;
-    // iOS rating counts are storefront-specific. Until the schema supports
-    // separate derived storefront series, only score the app's selected storefront.
-    const storefront = platformApp.platform === 'ios'
-      ? (platformApp.storefront && platformApp.storefront !== 'global' ? platformApp.storefront : 'us')
-      : null;
+    // This research deployment scores VN-only observations on BOTH platforms.
+    // Android public maxInstalls is NOT country-specific: VN identifies where
+    // the listing was successfully observed, not where installs occurred.
+    // Storefront-specific iOS rating counts are never mixed with US/JP data.
+    const storefront = config.catalog.researchMarket || 'vn';
     // Clear prior calculations for this app, including windows that no longer qualify.
     if (this.repo.db?.prepare) {
       this.repo.db.prepare('DELETE FROM derived_window_metrics WHERE platform_app_id = ?').run(platformApp.id);
