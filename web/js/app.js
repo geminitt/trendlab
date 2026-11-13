@@ -54,10 +54,17 @@ class TrendLabApp {
     // Repaint when the OS/browser switches light↔dark, without a page reload.
     const systemTheme = window.matchMedia?.('(prefers-color-scheme: dark)');
     if (systemTheme) {
+      const repaint = () => {
+        this.drawCanvas();
+        const drawer = document.getElementById('drawerOverlay');
+        if (this.selected && !drawer.classList.contains('hidden')) {
+          this.renderHistory(this.selected);
+        }
+      };
       if (systemTheme.addEventListener) {
-        systemTheme.addEventListener('change', () => this.drawCanvas());
+        systemTheme.addEventListener('change', repaint);
       } else if (systemTheme.addListener) {
-        systemTheme.addListener(() => this.drawCanvas());
+        systemTheme.addListener(repaint);
       }
     }
   }
