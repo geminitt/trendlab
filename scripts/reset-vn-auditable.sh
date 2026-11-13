@@ -111,7 +111,7 @@ fi
 snapshot "$ARCHIVE"
 
 # Move old database and WAL companions only AFTER backing up and checking
-# quiescence. No rm -rf, no unsafe SQLite deletion, no catalog import.
+# quiescence. No recursive deletion, unsafe SQLite deletion or automatic catalog import.
 mv "$DB" "$ARCHIVE/live-original.sqlite"
 for suffix in -wal -shm; do
   [ ! -e "$DB$suffix" ] || mv "$DB$suffix" "$ARCHIVE/live-original.sqlite$suffix"
