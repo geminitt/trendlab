@@ -7,7 +7,7 @@ function app(id, platform, count, metric, stars = 4.5) {
   return {
     id, title: id, platform, rawVolume: count, volumeMetric: metric,
     storefront: 'global',
-    history: [{ score: stars, storefront: platform === 'ios' ? 'us' : 'global' }]
+    history: [{ score: stars, storefront: 'vn' }]
   };
 }
 
@@ -40,11 +40,11 @@ test('rating color has fixed anchored thresholds and missing ratings remain neut
   assert.equal(scaleColor(app('x', 'ios', 100, 'observed_rating_count', null)), '#3b4a56');
 });
 
-test('rating star score is isolated by Apple storefront', () => {
+test('rating star score uses Vietnam Apple storefront, not US or JP', () => {
   const a = app('x', 'ios', 100, 'observed_rating_count');
   a.history = [
     { score: 5.0, storefront: 'jp' },
-    { score: 4.1, storefront: 'us' },
+    { score: 4.1, storefront: 'vn' },
     { score: 1.2, storefront: 'jp' }
   ];
   assert.equal(getLatestStarRating(a), 4.1);
@@ -74,12 +74,12 @@ test('duplicates without a compatible source metric do not hide observed source 
   assert.deepEqual(getScaleCandidates([measured, otherStore], 'ios').map(a => a.id), ['counted']);
 });
 
-test('US star color remains aligned with US rating counter for non-US catalog row', () => {
+test('VN star color remains aligned with VN rating counter for non-VN catalog row', () => {
   const item = app('jp-catalog', 'ios', 6000, 'observed_rating_count');
   item.storefront = 'jp';
   item.history = [
     { storefront: 'jp', score: 1.0 },
-    { storefront: 'us', score: 4.7 }
+    { storefront: 'vn', score: 4.7 }
   ];
   assert.equal(getLatestStarRating(item), 4.7);
   assert.equal(scaleColor(item), '#176431');
