@@ -17,11 +17,11 @@ Follow the research-first interaction of Karpathy Jobs rather than importing unr
 ## Critical correctness rules
 
 - Default view: **Android only**, so a single treemap has a consistent source unit and many application rectangles. iOS only is an independent treemap based on US rating counts. The All view is optional and displays **two separate coordinate panels**, not a falsely comparable combined market scale.
-- Android `maxInstalls` source semantics are unverified. iOS source counter is **US rating count**, not downloads. Both use `log10(count + 10)^2` for legible rectangle area. This is **not proportional market share** (unlike the employment-area example in Karpathy Jobs).
-- Color in the default layer reflects source-matched **1–5 user rating**, anchored red→amber→green; gray means missing score. The growth layers are provisional models, per-platform normalizations; they are not validated forecasts.
+- Android `maxInstalls` source semantics are unverified. iOS source counter is **US rating count**, not downloads. Observed Scale area is linear in positive source counts within a platform, NOT verified market share. Android maxInstalls and iOS US ratings have different units.
+- Color in the default layer reflects source-matched **1–5 user rating**, anchored red→amber→green; gray means missing score. Observed Delta area uses raw counter increases (not Model A's logarithmic score); Breakout/Sustained area uses the corresponding provisional model score, and Rating Velocity uses ratings/day. Never compress area further. Models remain unvalidated.
 - A Top-N or search filter **must never alter raw snapshots, model calculations or the catalog**. Top-N is omitted by default. Only users' visible selection changes.
 - Native store IDs are deduplicated within each platform, without silently equating Android/iOS apps.
-- Insufficient evidence for a requested trend layer must render a compact message, not fake positive/negative scores; observed scale remains available.
+- Zero, negative and missing values are separately counted and receive no false positive area. One positive valid signal can be displayed; absent positive signals show a short readiness message.
 - Long-term large-catalog performance will eventually require zoom/drilldown or progressive rendering; do not reinstate a silent Top-24 cutoff as a workaround.
 
 ## Deployment after merge
