@@ -2,6 +2,7 @@ const gplayRaw = require('google-play-scraper');
 const gplay = gplayRaw.default || gplayRaw;
 const Repository = require('../storage/repository');
 const config = require('../../config/default.json');
+const { audit } = require('../observability/audit');
 
 class AndroidCollector {
   constructor(repo = null) {
@@ -74,6 +75,10 @@ class AndroidCollector {
         explorationShare: config.collector.marketExplorationShare ?? 0.2 })
       : this.repo.getDuePlatformApps({ platform: 'android', storefront: country, limit });
     console.log(`[AndroidCollector] Starting collection for ${apps.length} Android apps...`);
+    audit('collector.batch_started', {
+      platform: 'android', storefront: country, selected: apps.length,
+      requested_limit: limit, policy: 'vn_evidence_80_explore_20'
+    });
 
     let succeeded = 0;
     let failed = 0;
@@ -95,6 +100,13 @@ class AndroidCollector {
           (config.collector.regionNotFoundRetryHours ?? 168) : 1,
         maxRetryHours: 720,
         refreshHours: config.collector.android.refreshHours ?? 24
+      });
+      audit('collector.lookup_result', {
+        platform: 'android', storefront: country, platform_app_id: app.id,
+        native_store_id: app.native_store_id, title: app.title,
+        outcome: res.success ? 'success' : 'failure',
+        error: res.error || null, elapsed_ms: res.latency,
+        attempt_index: i + 1, selected: apps.length
       });
 
       if (res.success) {
@@ -121,6 +133,10 @@ class AndroidCollector {
     }
 
     console.log(`[AndroidCollector] Finished: ${succeeded} succeeded, ${failed} failed.`);
+    audit('collector.batch_finished', {
+      platform: 'android', storefront: country, attempted, succeeded, failed,
+      systemic_failures: systemicFailures, skipped_after_limit: apps.length - attempted
+    });
     return { attempted, succeeded, failed, systemicFailures };
   }
 }
