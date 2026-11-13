@@ -48,7 +48,10 @@ function assertResearchMarkets(storefronts) {
 async function main() {
   const repo = new Repository();
   audit('cli.command_started', {
-    command, arguments: process.argv.slice(3),
+    // Audit flag NAMES only; raw values could contain credentials or private paths.
+    command, flag_names: process.argv.slice(3)
+      .filter(value => value.startsWith('--'))
+      .map(value => value.split('=')[0]),
     market: config.catalog.researchMarket,
     database_path: config.system.dbPath
   });
