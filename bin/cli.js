@@ -182,6 +182,15 @@ async function main() {
       const webDir = path.resolve(__dirname, '../web');
 
       const server = http.createServer((req, res) => {
+        const requestStarted = Date.now();
+        res.once('finish', () => {
+          let pathname = '/invalid';
+          try { pathname = new URL(req.url, 'http://localhost').pathname; } catch {}
+          audit('web.request', {
+            method: req.method, pathname, status: res.statusCode,
+            elapsed_ms: Date.now() - requestStarted
+          });
+        });
         let filePath;
         try {
           const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
