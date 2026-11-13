@@ -1,4 +1,5 @@
 const Repository = require('../storage/repository');
+const { audit } = require('../observability/audit');
 
 function finiteOrNull(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -84,6 +85,7 @@ class TrendScoringEngine {
     this.repo.db.prepare('DELETE FROM trend_model_scores WHERE window_type = ?').run(windowType);
 
     console.log(`[TrendScoringEngine] Scoring ${rows.length} apps for window '${windowType}'...`);
+    audit('model.window_started', { window_type: windowType, eligible_apps: rows.length });
 
     const models = ['model_a_growth', 'model_b_compounder', 'model_c_breakout'];
     const modelScores = {
@@ -128,6 +130,8 @@ class TrendScoringEngine {
     }
 
     console.log(`[TrendScoringEngine] Successfully generated trend scores and rankings for window '${windowType}'.`);
+    audit('model.window_finished', { window_type: windowType, eligible_apps: rows.length,
+      model_score_counts: Object.fromEntries(models.map(model => [model, modelScores[model].length])) });
   }
 
   evaluateAllWindows() {

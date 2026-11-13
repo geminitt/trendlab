@@ -4,3 +4,7 @@ data/*.sqlite-wal
 data/*.sqlite-shm
 .DS_Store
 *.log
+
+# Operational evidence and reset archives live outside the versioned code
+/logs/
+/backups/

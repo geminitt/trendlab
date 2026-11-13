@@ -14,6 +14,7 @@ const TrendScoringEngine = require('../src/analytics/trend_models');
 const BacktestingHarness = require('../src/validation/backtesting');
 const SiteDataBuilder = require('../src/export/build_site_data');
 const config = require('../config/default.json');
+const { audit, RUN_ID } = require('../src/observability/audit');
 
 const command = process.argv[2] || 'help';
 
@@ -46,6 +47,14 @@ function assertResearchMarkets(storefronts) {
 
 async function main() {
   const repo = new Repository();
+  audit('cli.command_started', {
+    // Audit flag NAMES only; raw values could contain credentials or private paths.
+    command, flag_names: process.argv.slice(3)
+      .filter(value => value.startsWith('--'))
+      .map(value => value.split('=')[0]),
+    market: config.catalog.researchMarket,
+    database_path: config.system.dbPath
+  });
 
   switch (command) {
     case 'seed': {
@@ -176,6 +185,15 @@ async function main() {
       const webDir = path.resolve(__dirname, '../web');
 
       const server = http.createServer((req, res) => {
+        const requestStarted = Date.now();
+        res.once('finish', () => {
+          let pathname = '/invalid';
+          try { pathname = new URL(req.url, 'http://localhost').pathname; } catch {}
+          audit('web.request', {
+            method: req.method, pathname, status: res.statusCode,
+            elapsed_ms: Date.now() - requestStarted
+          });
+        });
         let filePath;
         try {
           const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
@@ -213,7 +231,9 @@ async function main() {
 
       server.listen(port, process.env.HOST || '127.0.0.1', () => {
         console.log(`TrendLab Research Dashboard running at: http://localhost:${port}/`);
+        audit('web.started', { port: Number(port), host: process.env.HOST || '127.0.0.1' });
       });
+      server.on('close', () => audit('web.stopped', { port: Number(port) }));
       break;
     }
 
@@ -237,4 +257,20 @@ Commands:
   }
 }
 
-main().catch(console.error);
+const commandStarted = Date.now();
+main().then(() => {
+  if (command !== 'serve') audit('cli.command_finished', {
+    command, elapsed_ms: Date.now() - commandStarted,
+    exit_code: 0, run_id: RUN_ID
+  });
+}).catch(error => {
+  try {
+    audit('cli.command_failed', {
+      command, elapsed_ms: Date.now() - commandStarted, error
+    });
+  } catch (loggingFailure) {
+    console.error('Fatal: audit event could not be persisted:', loggingFailure);
+  }
+  console.error(error);
+  process.exitCode = 1;
+});

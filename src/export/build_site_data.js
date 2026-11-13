@@ -2,6 +2,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Repository = require('../storage/repository');
 const config = require('../../config/default.json');
+const crypto = require('node:crypto');
+const { audit } = require('../observability/audit');
 
 class SiteDataBuilder {
   constructor(repo = null) {
@@ -10,6 +12,8 @@ class SiteDataBuilder {
 
   build(outputPath = null) {
     console.log('[SiteDataBuilder] Building static site dataset (data.json)...');
+    const started = Date.now();
+    audit('export.started', { research_market: config.catalog.researchMarket });
     const targetPath = outputPath || path.resolve(__dirname, '../../web/data/data.json');
     const targetDir = path.dirname(targetPath);
     if (!fs.existsSync(targetDir)) {
@@ -243,6 +247,15 @@ class SiteDataBuilder {
     } finally {
       if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
     }
+    const sha256 = crypto.createHash('sha256')
+      .update(fs.readFileSync(targetPath)).digest('hex');
+    audit('export.finished', {
+      output: targetPath, research_market: market,
+      exported_apps: compiledApps.length, measured_apps: measuredMarketApps,
+      candidate_catalog_apps: catalogSize,
+      bytes: fs.statSync(targetPath).size, sha256,
+      elapsed_ms: Date.now() - started
+    });
     console.log(`[SiteDataBuilder] Successfully generated ${targetPath} (${compiledApps.length} apps, ${(fs.statSync(targetPath).size / 1024).toFixed(1)} KB).`);
     return targetPath;
   }
