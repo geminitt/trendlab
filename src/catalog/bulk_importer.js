@@ -5,6 +5,7 @@ const path = require('node:path');
 const readline = require('node:readline');
 const { spawn } = require('node:child_process');
 const Repository = require('../storage/repository');
+const { audit } = require('../observability/audit');
 
 // AppGoblin's public TSV columns are documented at
 // https://github.com/appgoblin-dev/appgoblin-data
@@ -69,6 +70,10 @@ class BulkCatalogImporter {
     if (!(maxApps === Infinity || (Number.isSafeInteger(maxApps) && maxApps > 0))) {
       throw new RangeError('maxApps must be a positive integer or Infinity');
     }
+    const started = Date.now();
+    audit('catalog.import_started', {
+      source: path.resolve(filePath), max_apps: maxApps === Infinity ? null : maxApps
+    });
     const source = openTsv(filePath);
     const lines = readline.createInterface({ input: source.input, crlfDelay: Infinity });
     const summary = {
@@ -146,8 +151,15 @@ class BulkCatalogImporter {
       }
       if (!columns) throw new Error('Empty TSV dataset');
       commit();
+      audit('catalog.import_finished', {
+        ...summary, elapsed_ms: Date.now() - started
+      });
       return summary;
     } catch (error) {
+      audit('catalog.import_failed', {
+        source: path.resolve(filePath), rows_read: summary.rowsRead,
+        imported: summary.imported, elapsed_ms: Date.now() - started, error
+      });
       if (transactionOpen) database.exec('ROLLBACK');
       throw error;
     } finally {
