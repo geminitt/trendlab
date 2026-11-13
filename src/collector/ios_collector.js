@@ -29,7 +29,7 @@ class IosCollector {
     this.repo = repo || new Repository();
   }
 
-  async collectBatch(apps, storefront = 'us') {
+  async collectBatch(apps, storefront = config.collector.ios.country || 'vn') {
     if (!apps || apps.length === 0) return { succeeded: 0, failed: 0 };
 
     const ids = apps.map(a => a.native_store_id).join(',');
@@ -127,8 +127,8 @@ class IosCollector {
     }
   }
 
-  async collectAll({ limit = 200, storefront = 'us' } = {}) {
-    const apps = this.repo.getDuePlatformApps({ platform: 'ios', storefront, limit });
+  async collectAll({ limit = 200, storefront = config.collector.ios.country || 'vn' } = {}) {
+    const apps = this.repo.getDuePlatformApps({ platform: 'ios', storefront, limit, preferStorefront: storefront });
     console.log(`[IosCollector] Starting batch collection for ${apps.length} iOS apps (Storefront: ${storefront.toUpperCase()})...`);
 
     const batchSize = config.collector.ios.lookupBatchSize || 50;
