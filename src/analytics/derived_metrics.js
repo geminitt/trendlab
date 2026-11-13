@@ -163,28 +163,67 @@ class DerivedMetricsCalculator {
   }
 
   calculateAll(now = new Date()) {
-    // Scan observed_metrics instead of querying all catalog apps individually.
-    // On a catalog of 330k apps with <1k observed, this removes hundreds of
-    // thousands of pointless per-app SELECTs.
+    // Only enumerate apps with actual VN storefront evidence. A large global
+    // imported ID catalog must not cause per-app audit spam, and US/JP samples
+    // must NEVER qualify an app for a VN trend.
     const db = this.repo.db;
-    const eligibleApps = db.prepare(`
-      SELECT p.*
-      FROM (
-        SELECT platform_app_id
-        FROM observed_metrics
-        WHERE observed_install_counter IS NOT NULL
-           OR observed_rating_count IS NOT NULL
-        GROUP BY platform_app_id
-        HAVING COUNT(*) >= 3
-      ) candidates
-      JOIN platform_applications p ON p.id = candidates.platform_app_id
-      WHERE p.is_active = 1
+    const market = config.catalog.researchMarket || 'vn';
+    const marketCohort = db.prepare(`
+      SELECT p.*,
+             COUNT(*) AS market_observation_rows,
+             SUM(CASE
+               WHEN (p.platform = 'android'
+                 AND m.observed_install_counter IS NOT NULL
+                 AND m.observed_install_counter >= 0)
+                 OR (p.platform = 'ios'
+                 AND m.observed_rating_count IS NOT NULL
+                 AND m.observed_rating_count >= 0)
+               THEN 1 ELSE 0 END) AS metric_observations
+      FROM observed_metrics m
+      JOIN platform_applications p ON p.id = m.platform_app_id
+      WHERE m.storefront = ?
+        AND p.is_active = 1
+        AND p.platform IN ('android', 'ios')
+        AND (m.observed_rank IS NOT NULL
+          OR m.observed_install_counter IS NOT NULL
+          OR m.observed_rating_count IS NOT NULL)
+      GROUP BY p.id
       ORDER BY p.id
-    `).all();
+    `).all(market);
+    const eligibleApps = marketCohort.filter(app => app.metric_observations >= 3);
+    const measuredApps = marketCohort.filter(app => app.metric_observations > 0).length;
+    const noMetrics = marketCohort.length - measuredApps;
+    const insufficient = measuredApps - eligibleApps.length;
+
+    audit('analytics.eligibility_summary', {
+      storefront: market,
+      market_candidates: marketCohort.length,
+      apps_with_metrics: measuredApps,
+      apps_without_metrics: noMetrics,
+      apps_with_insufficient_observations: insufficient,
+      apps_eligible: eligibleApps.length,
+      apps_ineligible: marketCohort.length - eligibleApps.length,
+      minimum_observations: 3,
+      at: now.toISOString()
+    });
+    for (const app of marketCohort) {
+      if (app.metric_observations >= 3) continue;
+      audit('analytics.app_ineligible', {
+        platform_app_id: app.id, platform: app.platform, storefront: market,
+        metric_observations: app.metric_observations,
+        market_observation_rows: app.market_observation_rows,
+        required_observations: 3,
+        reason: app.metric_observations === 0 ?
+          'NO_MARKET_METRIC_OBSERVATIONS' : 'INSUFFICIENT_OBSERVATIONS',
+        evaluated_at: now.toISOString()
+      });
+    }
 
     audit('analytics.dataset_started', {
-      source_market: config.catalog.researchMarket,
+      source_market: market,
       candidate_apps: eligibleApps.length,
+      total_market_candidates: marketCohort.length,
+      apps_with_metrics: measuredApps,
       at: now.toISOString()
     });
     // Rebuild as a single transaction so errors cannot leave partial derived
