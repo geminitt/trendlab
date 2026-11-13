@@ -78,3 +78,19 @@ test('reset script is a guarded operator action, not an automatic deletion', () 
   assert.match(script, /mv "\$DB"/);
   assert.doesNotMatch(script, /rm -rf/);
 });
+
+test('analytics rejects insufficient coverage with a specific, reviewable reason', () => {
+  const { calculateWindow } = require('../src/analytics/derived_metrics');
+  const now = new Date('2026-11-13T00:00:00.000Z');
+  const series = [
+    { observed_at: '2026-11-11T00:00:00.000Z', observed_install_counter: 100, storefront: 'vn' },
+    { observed_at: '2026-11-12T00:00:00.000Z', observed_install_counter: 120, storefront: 'vn' },
+    { observed_at: '2026-11-12T12:00:00.000Z', observed_install_counter: 140, storefront: 'vn' }
+  ];
+  let rejection = null;
+  const result = calculateWindow(series, 'android', { name:'7d', days:7 }, now, 500, 'vn',
+    (reason, context) => { rejection = { reason, context }; });
+  assert.equal(result, null);
+  assert.equal(rejection.reason, 'INSUFFICIENT_TIME_COVERAGE');
+  assert.ok(rejection.context.required_span_days > rejection.context.span_days);
+});
