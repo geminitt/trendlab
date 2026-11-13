@@ -24,6 +24,14 @@ Follow the research-first interaction of Karpathy Jobs rather than importing unr
 - Zero, negative and missing values are separately counted and receive no false positive area. One positive valid signal can be displayed; absent positive signals show a short readiness message.
 - Long-term large-catalog performance will eventually require zoom/drilldown or progressive rendering; do not reinstate a silent Top-24 cutoff as a workaround.
 
+## Theme behavior (system default)
+
+The UI follows the operating system/browser `prefers-color-scheme` automatically:
+- Dark appearance retains the research palette; Light appearance uses accessible light surfaces, controls, tooltips and inspection drawer.
+- Treemap Canvas background, section labels and chart axes use CSS custom properties. A live media-query listener repaints Canvas and any open app history chart when the system switches modes, without a page reload.
+- Metric tile colors, source counts, rankings, area ratios and model output **do not change** when the theme changes. Color still encodes rating or model signal.
+- No manual theme toggle or stored preference is required. Browser chrome theme metadata follows the same OS preference.
+
 ## Deployment after merge
 
 ```bash
