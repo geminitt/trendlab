@@ -14,6 +14,7 @@ const TrendScoringEngine = require('../src/analytics/trend_models');
 const BacktestingHarness = require('../src/validation/backtesting');
 const SiteDataBuilder = require('../src/export/build_site_data');
 const config = require('../config/default.json');
+const { audit, RUN_ID } = require('../src/observability/audit');
 
 const command = process.argv[2] || 'help';
 
@@ -46,6 +47,11 @@ function assertResearchMarkets(storefronts) {
 
 async function main() {
   const repo = new Repository();
+  audit('cli.command_started', {
+    command, arguments: process.argv.slice(3),
+    market: config.catalog.researchMarket,
+    database_path: config.system.dbPath
+  });
 
   switch (command) {
     case 'seed': {
@@ -213,7 +219,9 @@ async function main() {
 
       server.listen(port, process.env.HOST || '127.0.0.1', () => {
         console.log(`TrendLab Research Dashboard running at: http://localhost:${port}/`);
+        audit('web.started', { port: Number(port), host: process.env.HOST || '127.0.0.1' });
       });
+      server.on('close', () => audit('web.stopped', { port: Number(port) }));
       break;
     }
 
@@ -237,4 +245,20 @@ Commands:
   }
 }
 
-main().catch(console.error);
+const commandStarted = Date.now();
+main().then(() => {
+  if (command !== 'serve') audit('cli.command_finished', {
+    command, elapsed_ms: Date.now() - commandStarted,
+    exit_code: 0, run_id: RUN_ID
+  });
+}).catch(error => {
+  try {
+    audit('cli.command_failed', {
+      command, elapsed_ms: Date.now() - commandStarted, error
+    });
+  } catch (loggingFailure) {
+    console.error('Fatal: audit event could not be persisted:', loggingFailure);
+  }
+  console.error(error);
+  process.exitCode = 1;
+});
