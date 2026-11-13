@@ -1,3 +1,5 @@
+> **Updated 2026-11-13: Vietnam-only research scope.** The old multi-country examples below are historical and must NOT be used. Follow [VIETNAM_DEPLOYMENT.md](VIETNAM_DEPLOYMENT.md) for the tested systemd rollout, and see [REQUIREMENTS_ACCEPTANCE.md](REQUIREMENTS_ACCEPTANCE.md) for binding VN-only requirements.
+
 # TrendLab — Ubuntu operating guide (continuous collection)
 
 This rollout is opt-in. Nothing in this PR edits the existing Ubuntu server,
@@ -15,7 +17,7 @@ the same SQLite database. Existing database backups should be kept.
   24-hour refreshes forever, though a daily refresh is **not guaranteed**.
 - `sweep`: imports apps appearing in sampled Education Top Charts and stores
   the observed rank and country. These charts are Top-K only, **not a complete
-  worldwide app census**.
+  Vietnam app census**.
 - Existing AppGoblin bulk files can be re-imported idempotently whenever a newer
   legal export is available. The project **does not claim** that an unlimited,
   automatically updated AppGoblin feed exists.
@@ -36,7 +38,7 @@ node bin/cli.js export
 Optional manual discovery:
 
 ```bash
-node bin/cli.js sweep --storefronts us,vn,gb,de,jp,in
+node bin/cli.js sweep --storefronts vn
 ```
 
 Country availability, source response formats and access rules should be
@@ -67,7 +69,7 @@ After=network-online.target
 Type=simple
 User=gemini
 WorkingDirectory=/home/gemini/trendlab
-ExecStart=/usr/bin/node /home/gemini/trendlab/bin/cli.js collect-loop --android-limit 25 --ios-limit 50 --storefronts us,vn,gb,de,jp,in --pause-seconds 120
+ExecStart=/usr/bin/node /home/gemini/trendlab/bin/cli.js collect-loop --android-limit 25 --ios-limit 50 --storefronts vn --pause-seconds 120
 Restart=on-failure
 RestartSec=120
 TimeoutStopSec=180
@@ -102,7 +104,7 @@ Wants=network-online.target
 Type=oneshot
 User=gemini
 WorkingDirectory=/home/gemini/trendlab
-ExecStart=/usr/bin/node /home/gemini/trendlab/bin/cli.js sweep --storefronts us,vn,gb,de,jp,in
+ExecStart=/usr/bin/node /home/gemini/trendlab/bin/cli.js sweep --storefronts vn
 TimeoutStartSec=20min
 ```
 
