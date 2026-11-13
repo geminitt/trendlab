@@ -272,7 +272,7 @@ class Repository {
     return {
       generatedAt: now,
       researchMarket: market,
-      coverageMeaning: 'byPlatform is historical mixed-country catalog coverage, NOT Vietnam coverage. marketByPlatform counts apps with VN chart/lookup evidence only; not a census of all VN Education apps.',
+      coverageMeaning: 'byPlatform is historical mixed-country local catalog coverage, NOT Vietnam coverage. marketByPlatform counts apps with VN chart/lookup evidence only; not a census of all VN Education apps.',
       byPlatform: summary,
       marketByPlatform: marketSummary,
       recentJobs: audit
