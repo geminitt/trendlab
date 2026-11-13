@@ -15,9 +15,8 @@ const UNIT = {
 
 function getLatestStarRating(app) {
   const history = Array.isArray(app.history) ? app.history : [];
-  // The snapshot scale on iOS uses the US rating counter, so its color
-  // must use the US star rating too, even if the catalog row came from JP/VN.
-  const storefront = 'us';
+  // The VN market study uses VN rating count, so star colors must come from VN too.
+  const storefront = 'vn';
   for (let i = history.length - 1; i >= 0; i--) {
     const h = history[i];
     if (app.platform === 'ios' && h.storefront !== storefront) continue;
