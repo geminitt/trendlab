@@ -148,3 +148,5 @@ CREATE INDEX IF NOT EXISTS idx_collection_store_due
   ON collection_state(storefront, next_due_at, last_attempted_at);
 CREATE INDEX IF NOT EXISTS idx_observed_app_store_time
   ON observed_metrics(platform_app_id, storefront, observed_at);
+CREATE INDEX IF NOT EXISTS idx_metrics_store_app
+  ON observed_metrics(storefront, platform_app_id);
