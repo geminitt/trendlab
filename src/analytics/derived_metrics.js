@@ -1,4 +1,5 @@
 const Repository = require('../storage/repository');
+const { audit } = require('../observability/audit');
 const config = require('../../config/default.json');
 
 const DAY_MS = 86400000;
@@ -121,7 +122,20 @@ class DerivedMetricsCalculator {
     }
     for (const window of WINDOWS) {
       const metrics = calculateWindow(series, platformApp.platform, window, now, prior, storefront);
-      if (!metrics) continue; // Insufficient / invalid evidence must not become a zero score.
+      if (!metrics) {
+        audit('analytics.window_skipped', {
+          platform_app_id: platformApp.id, platform: platformApp.platform,
+          storefront, window_type: window.name,
+          total_observation_rows: series.length,
+          scoped_observations: series.filter(row => row.storefront === storefront &&
+            (platformApp.platform === 'android' ?
+              Number.isFinite(row.observed_install_counter) :
+              Number.isFinite(row.observed_rating_count))).length,
+          reason: 'insufficient_or_invalid_window', // no fabricated score
+          evaluated_at: now.toISOString()
+        });
+        continue;
+      }
       const row = {
         platformAppId: platformApp.id,
         windowType: window.name,
@@ -153,6 +167,11 @@ class DerivedMetricsCalculator {
       ORDER BY p.id
     `).all();
 
+    audit('analytics.dataset_started', {
+      source_market: config.catalog.researchMarket,
+      candidate_apps: eligibleApps.length,
+      at: now.toISOString()
+    });
     // Rebuild as a single transaction so errors cannot leave partial derived
     // results. Old results for apps that no longer qualify are removed too.
     let scoredApps = 0;
@@ -163,8 +182,10 @@ class DerivedMetricsCalculator {
         if (this.calculateForApp(app, now).length > 0) scoredApps++;
       }
       db.exec('COMMIT');
+      audit('analytics.dataset_finished', { candidate_apps: eligibleApps.length, scored_apps: scoredApps });
     } catch (error) {
       db.exec('ROLLBACK');
+      audit('analytics.dataset_failed', { candidate_apps: eligibleApps.length, error });
       throw error;
     }
 
