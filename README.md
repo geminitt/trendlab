@@ -17,6 +17,11 @@ Inspired by [karpathy/jobs](https://github.com/karpathy/jobs).
 
 ## Explore the map
 
+Open the hosted dashboard at **https://geminitt.github.io/trendlab/**.
+GitHub Pages publishes the bundled static data after the test suite passes on
+each push to `main`. Publishing does not refresh the Wikipedia sample; collect
+and commit updated exports to publish newer data.
+
 The bundled data contains English and Vietnamese Wikipedia samples. Serve the
 static dashboard from the repository root:
 
