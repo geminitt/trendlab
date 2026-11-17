@@ -1,0 +1,9 @@
+[project]
+name = "trendlab"
+version = "0.1.0"
+description = "A Wikipedia attention treemap built from real pageview histories"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+trendlab = "trendlab.__main__:main"

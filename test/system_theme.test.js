@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const read = name => fs.readFileSync(path.join(__dirname, '..', name), 'utf8');
 
-const html = read('web/index.html');
+const html = read('web/education.html');
 const theme = read('web/css/system-theme.css');
 const app = read('web/js/app.js');
 const scale = read('web/js/scale.js');

@@ -8,3 +8,8 @@ data/*.sqlite-shm
 # Operational evidence and reset archives live outside the versioned code
 /logs/
 /backups/
+
+# Python bytecode and per-project environments
+__pycache__/
+*.py[cod]
+.pixi/

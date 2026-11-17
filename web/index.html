@@ -1,109 +1,70 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f8fb">
-  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0e13">
-  <title>TrendLab | Education App Intelligence</title>
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/karpathy-minimal.css">
-  <link rel="stylesheet" href="css/system-theme.css">
+  <meta name="description" content="Explore what people are reading on Wikipedia. A treemap of real pageviews and changes across language editions.">
+  <title>TrendLab · Wikipedia Attention Map</title>
+  <link rel="stylesheet" href="css/wiki.css">
 </head>
 <body>
-  <main class="shell">
-    <header class="topbar">
-      <div class="brand">
-        <div class="brand-symbol" aria-hidden="true"><span></span><span></span><span></span></div>
-        <div><div class="brand-title">TREND<span>LAB</span></div><div class="brand-subtitle">VIETNAM EDUCATION RESEARCH</div></div>
-      </div>
-      <div class="top-right"><span class="status-dot"></span><span>Local research dataset</span><span class="top-separator"></span><time id="metaLastUpdated">Not loaded</time></div>
+  <main class="page">
+    <header class="masthead">
+      <div class="eyebrow"><span class="mark" aria-hidden="true">▦</span> TRENDLAB <span class="divider">/</span> WIKIPEDIA ATTENTION</div>
+      <h1>What has the world<br>been reading?</h1>
+      <p class="intro">A map of attention, one article at a time. <strong>Size is pageviews.</strong> Color shows how readership changed from the previous period.</p>
+      <p class="byline">Built with Wikimedia data · Inspired by <a href="https://github.com/karpathy/jobs" target="_blank" rel="noopener noreferrer">karpathy/jobs ↗</a></p>
     </header>
 
+    <section class="controls" aria-label="Map controls">
+      <label>WIKIPEDIA EDITION<select id="languageSelect" disabled aria-describedby="editionHelp"><option>Loading editions…</option></select></label>
+      <fieldset><legend>PERIOD</legend><div class="segments" id="periodControl"><button type="button" data-days="1" aria-pressed="true">1 day</button><button type="button" data-days="7" aria-pressed="false">7 days</button><button type="button" data-days="30" aria-pressed="false">30 days</button></div></fieldset>
+      <label>SHOW<select id="trendSelect"><option value="all">All articles</option><option value="rising">Rising</option><option value="falling">Falling</option><option value="zero_baseline">Zero prior views</option></select></label>
+      <label class="search">FIND AN ARTICLE<input id="searchInput" type="search" placeholder="Search titles…" autocomplete="off"></label>
+    </section>
+    <p id="editionHelp" class="edition-help">Each edition is a separate audience. Language does not identify the reader’s country.</p>
 
-
-    <section class="workspace" aria-label="Education app research explorer">
-      <div class="research-intro">
-        <h1>Vietnam Education App Visualizer <span class="prototype-label">RESEARCH PROTOTYPE</span></h1>
-        <p>Explore Education app signals observed in Vietnam's Google Play and App Store storefronts. Each rectangle represents a distinct measured application. <strong>Area</strong> is proportional to the positive value of the selected measurement (source counter or provisional trend signal); <strong>color</strong> shows its rating or relative signal strength. This is a partial VN market sample, not a complete census or verified VN downloads. Click any tile for its observation history and source.</p>
-      </div>
-
-      <div class="toolbar" aria-label="Treemap controls">
-        <div class="toolbar-cluster"><span class="control-label">PLATFORM</span><div class="segmented" id="platformToggle">
-          <button type="button" data-platform="all">All (separate)</button>
-          <button type="button" class="active" data-platform="android">Android</button>
-          <button type="button" data-platform="ios">iOS</button>
-        </div></div>
-        <label class="toolbar-cluster metric-cluster"><span class="control-label">METRIC</span><select id="colorSelect">
-          <option value="observed_scale" selected>Star rating · observed scale</option>
-          <option value="model_c_breakout">Breakout · provisional</option>
-          <option value="model_b_compounder">Sustained growth · provisional</option>
-          <option value="model_a_growth">Observed delta · provisional</option>
-          <option value="rating_velocity">Rating velocity · observed</option>
-        </select></label>
-        <div class="toolbar-cluster"><span class="control-label">WINDOW</span><div class="segmented" id="windowToggle">
-          <button type="button" data-window="7d">7D</button><button type="button" data-window="14d">14D</button><button type="button" class="active" data-window="30d">30D</button><button type="button" data-window="90d">90D</button><button type="button" data-window="all">ALL</button>
-        </div></div>
-        <label class="search-field"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" placeholder="Search apps or developers…" autocomplete="off" aria-label="Search applications and developers"></label>
-      </div>
-
-      <div class="research-stats" aria-label="Real observed dataset summary">
-        <div class="research-stat"><span>KNOWN CATALOG</span><strong id="kpiCatalog">—</strong><small>Known apps with VN storefront evidence</small></div>
-        <div class="research-stat"><span>OBSERVED</span><strong id="kpiObserved">—</strong><small><span id="kpiCoverage">—</span> of VN-evidenced apps</small></div>
-        <div class="research-stat"><span>TREND EVIDENCE</span><strong id="kpiScored">—</strong><small>Usable provisional model evidence · selected window</small></div>
-        <div class="research-stat"><span>FRESH · 48 HOURS</span><strong id="kpiFresh">—</strong><small>VN storefront observations</small></div>
-      </div>
-
-      <div class="map-overview">
-        <div class="map-overview-heading"><span id="visibleCount">—</span><span class="workspace-separator">·</span><span id="qualityCount">—</span></div>
-        <div class="interpretation"><span class="info-mark">i</span><span id="areaExplanation">Source counters only; no cross-platform comparison of units.</span></div>
-      </div>
-
-      <section class="map-pane" aria-label="Interactive education app treemap">
-        <div class="map-header"><span id="mapHeading">OBSERVED APPLICATIONS</span><span id="mapSubheading">—</span></div>
-        <div class="canvas-frame" id="canvasPane">
-          <canvas id="treemapCanvas" aria-label="Interactive treemap of observed Education apps"></canvas>
-          <div id="readinessSurface" class="readiness-surface hidden" aria-label="Trend evidence readiness">
-            <div class="minimal-readiness">
-              <div class="readiness-kicker">INSUFFICIENT TIME SERIES</div>
-              <h3>Growth needs history.</h3>
-              <p><strong id="readinessScored">0</strong> of <strong id="readinessTotal">0</strong> apps have a positive value for this metric and time window. Zero, negative and missing values do not create positive-area tiles; one snapshot cannot establish growth.</p>
-              <button id="readinessScaleButton" type="button">Show observed scale instead</button>
-            </div>
-          </div>
-          <div class="canvas-tooltip hidden" id="canvasTooltip" role="status"></div>
-          <div class="empty-message hidden" id="emptyMessage"></div>
-        </div>
-        <div class="map-footer" id="mapFooter"><div class="legend" id="mapLegend">AREA · linear source count &nbsp;&nbsp; COLOR · 1–5★ rating</div><span id="mapFooterNote">Android maxInstalls is not Vietnam installs; iOS VN rating counts are not comparable.</span></div>
-      </section>
+    <div id="status" class="status" role="status" aria-live="polite">Loading Wikimedia data…</div>
+    <section class="stats" aria-label="Selected sample statistics">
+      <div><span>VIEWS IN FILTERED SAMPLE</span><strong id="totalViews">—</strong><small id="periodDates">—</small></div>
+      <div><span>ARTICLES SHOWN</span><strong id="articleCount">—</strong><small id="sampleCount">—</small></div>
+      <div><span>RISING / FALLING</span><strong id="movementCount">—</strong><small>Among articles in this filter</small></div>
+      <div><span>LATEST DATA · UTC</span><strong id="dataDate">—</strong><small id="comparisonDates">—</small></div>
     </section>
 
-    <footer class="footer"><span>TrendLab · Research prototype</span><span>Observation history and source provenance available when you click a tile · Data may be incomplete</span></footer>
+    <section class="map-section" aria-label="Wikipedia article treemap">
+      <div class="map-bar">
+        <div><span class="live-dot" aria-hidden="true"></span><strong id="mapTitle">WIKIPEDIA</strong><span class="map-subtitle"> / READER ATTENTION</span></div>
+        <div class="segments small" id="viewControl"><button type="button" data-view="map" aria-pressed="true">Map</button><button type="button" data-view="list" aria-pressed="false">List</button></div>
+      </div>
+      <div class="map-stage" id="mapStage">
+        <canvas id="wikiCanvas" tabindex="0" role="img" aria-label="Wikipedia article treemap" aria-describedby="mapHelp"></canvas>
+        <div id="emptyState" class="empty-state" hidden><span>NO ARTICLES TO SHOW</span><h2>Try a wider view.</h2><p id="emptyText">Change the search, filter or time period.</p></div>
+        <div id="tooltip" class="tooltip" role="status" hidden></div>
+      </div>
+      <div id="listPanel" class="list-panel" hidden><table><caption class="sr-only">Articles matching the selected edition, period and filter</caption><thead><tr><th scope="col">Article</th><th scope="col">Pageviews</th><th scope="col">Change</th></tr></thead><tbody id="articleRows"></tbody></table></div>
+      <div class="legend-row"><div class="legend"><span>−100%</span><span class="legend-gradient" aria-hidden="true"></span><span>+100% or more</span><span class="legend-neutral">■ No comparable prior period</span></div><span>COLOR · change in pageviews</span></div>
+      <p id="mapHelp" class="map-help">Hover for details. Click to explore. Keyboard: focus the map, use arrow keys, then Enter. The List view provides every displayed article.</p>
+    </section>
+
+    <section class="method" aria-label="How to read this map"><p><strong>A snapshot of Wikipedia attention.</strong> Articles come from a daily Top 1,000 sample, with the main page and non-article pages removed. Pageview histories determine every tile’s size and color. This is a selected sample, not all of Wikipedia.</p><p id="qualityNote">Missing observations are kept separate from real zeroes. A zero prior total has no finite percentage change.</p></section>
+    <footer><span>TrendLab <span class="divider">/</span> Follow attention.</span><a href="https://doc.wikimedia.org/generated-data-platform/aqs/analytics-api/reference/page-views.html" target="_blank" rel="noopener noreferrer">About the source ↗</a></footer>
   </main>
-  <div class="drawer-overlay hidden" id="drawerOverlay">
-    <div class="drawer-backdrop" id="drawerBackdrop"></div>
-    <section class="drawer" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <div class="drawer-top"><div class="eyebrow">APPLICATION INTELLIGENCE</div><button type="button" class="close-button" id="drawerClose" aria-label="Close details">×</button></div>
-      <div class="drawer-header"><div class="platform-tag" id="modalPlatform">—</div><h2 id="modalTitle">—</h2><div class="drawer-developer" id="modalDeveloper"></div></div>
-      <div class="drawer-body">
-        <div id="modalNotice" class="detail-notice"></div>
-        <div class="detail-grid">
-          <div class="detail-stat"><span>OBSERVED COUNTER</span><strong id="modalVolume">—</strong><small id="modalVolumeType">—</small></div>
-          <div class="detail-stat"><span>SELECTED SIGNAL</span><strong id="modalScore">—</strong><small id="modalScoreType">—</small></div>
-          <div class="detail-stat"><span>RATING VELOCITY</span><strong id="modalVelocity">—</strong><small>Ratings/day · if available</small></div>
-          <div class="detail-stat"><span>WINDOW COVERAGE</span><strong id="modalCompleteness">—</strong><small>Observed days / requested days</small></div>
-        </div>
-        <div class="detail-section"><div class="detail-section-heading"><h3>Observation timeline</h3><span id="modalHistoryCount">—</span></div><div id="historyChart" class="history-chart"></div><div id="historyTableContainer" class="history-table-container"></div></div>
-        <div class="detail-section"><h3>Data provenance</h3><div class="source-grid"><span>Source</span><strong id="modalSource">—</strong><span>Method</span><strong id="modalMethod">—</strong><span>Last recorded</span><strong id="modalLastObserved">—</strong><span>Payload reference</span><strong id="modalSha">—</strong></div></div>
-        <a id="modalStoreLink" class="store-link" href="#" target="_blank" rel="noopener noreferrer">Open official store <span aria-hidden="true">↗</span></a>
-      </div>
-    </section>
-  </div>
+
+  <dialog id="articleDialog" aria-labelledby="articleTitle">
+    <div class="dialog-top"><span class="eyebrow" id="articleEdition">WIKIPEDIA ARTICLE</span><button class="close" id="closeDialog" type="button" aria-label="Close article details">×</button></div>
+    <h2 id="articleTitle"></h2><p id="articlePeriod" class="muted"></p>
+    <div class="detail-stats"><div><span>PAGEVIEWS</span><strong id="articleViews"></strong></div><div><span>PREVIOUS PERIOD</span><strong id="articlePrevious"></strong></div><div><span>CHANGE</span><strong id="articleChange"></strong></div></div>
+    <p id="articleNotice" class="notice"></p>
+    <div class="history-heading"><h3>Daily readership</h3><span id="historyDates" class="muted"></span></div>
+    <div id="historyChart" class="history-chart"></div>
+    <details><summary>Daily values</summary><div class="history-table"><table><thead><tr><th scope="col">UTC date</th><th scope="col">Pageviews</th></tr></thead><tbody id="historyRows"></tbody></table></div></details>
+    <div class="source-note"><span>Source retrieved <time id="sourceFetched"></time></span><details><summary>Source fingerprint</summary><code id="sourceHash"></code></details></div>
+    <div class="dialog-links"><a id="articleLink" target="_blank" rel="noopener noreferrer">Read on Wikipedia ↗</a><a id="sourceLink" target="_blank" rel="noopener noreferrer">View source data ↗</a></div>
+  </dialog>
   <script src="js/treemap.js"></script>
-  <script src="js/scale.js"></script>
-  <script src="js/area.js"></script>
-  <script src="js/readiness.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/wiki-metrics.js"></script>
+  <script src="js/wiki.js"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const html = fs.readFileSync(path.join(__dirname, '../web/index.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '../web/education.html'), 'utf8');
 const app = fs.readFileSync(path.join(__dirname, '../web/js/app.js'), 'utf8');
 const scale = fs.readFileSync(path.join(__dirname, '../web/js/scale.js'), 'utf8');
 
